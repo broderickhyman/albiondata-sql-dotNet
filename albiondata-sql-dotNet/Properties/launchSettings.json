@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "albiondata-sql-dotNet": {
+      "commandName": "Project",
+      "commandLineArgs": "-n nats://public:thenewalbiondata@localhost:4222"
+    }
+  }
+}
