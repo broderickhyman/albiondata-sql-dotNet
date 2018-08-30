@@ -12,8 +12,11 @@ namespace albiondata_sql_dotNet
   {
     private static void Main(string[] args) => CommandLineApplication.Execute<Program>(args);
 
-    [Option(Description = "Incoming NATS Url", ShortName = "n", ShowInHelpText = true)]
+    [Option(Description = "NATS Url", ShortName = "n", ShowInHelpText = true)]
     public static string NatsUrl { get; } = "nats://public:thenewalbiondata@localhost:4222";
+
+    [Option(Description = "SQL Connection Url", ShortName = "s", ShowInHelpText = true)]
+    public static string SqlConnectionUrl { get; } = "server=localhost;port=3306;database=albion;user=root;";
 
     [Option(Description = "Enable Debug Logging", ShortName = "d", LongName = "debug", ShowInHelpText = true)]
     public static bool Debug { get; }
