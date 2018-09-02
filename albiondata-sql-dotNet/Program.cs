@@ -1,8 +1,10 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NATS.Client;
 using Newtonsoft.Json;
 using System;
+using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -16,7 +18,7 @@ namespace albiondata_sql_dotNet
     public static string NatsUrl { get; } = "nats://public:thenewalbiondata@localhost:4222";
 
     [Option(Description = "SQL Connection Url", ShortName = "s", ShowInHelpText = true)]
-    public static string SqlConnectionUrl { get; } = "server=localhost;port=3306;database=albion;user=root;";
+    public static string SqlConnectionUrl { get; } = "SslMode=none;server=localhost;port=3306;database=albion;user=root;password=";
 
     [Option(Description = "Enable Debug Logging", ShortName = "d", LongName = "debug", ShowInHelpText = true)]
     public static bool Debug { get; }
@@ -56,10 +58,22 @@ namespace albiondata_sql_dotNet
       };
 
       var logger = CreateLogger<Program>();
-      logger.LogInformation($"Nats URL: {NatsUrl}");
       if (Debug)
         logger.LogInformation("Debugging enabled");
 
+      using (var context = new MarketOrderContext())
+      {
+        if (context.Database.EnsureCreated())
+        {
+          logger.LogInformation("Database Created");
+        }
+        else
+        {
+          logger.LogInformation("Database Exists");
+        }
+      }
+
+      logger.LogInformation($"Nats URL: {NatsUrl}");
       logger.LogInformation($"NATS Connected, ID: {NatsConnection.ConnectedId}");
 
       var incomingMarketOrders = NatsConnection.SubscribeAsync(marketOrdersDeduped);
@@ -87,8 +101,35 @@ namespace albiondata_sql_dotNet
       var message = args.Message;
       try
       {
-        var marketUpload = JsonConvert.DeserializeObject<MarketOrder>(Encoding.UTF8.GetString(message.Data));
-        logger.LogInformation("Processing Market Order");
+        using (var context = new MarketOrderContext())
+        {
+          var marketOrder = JsonConvert.DeserializeObject<MarketOrderDB>(Encoding.UTF8.GetString(message.Data));
+          marketOrder.AlbionId = marketOrder.Id;
+          marketOrder.Id = 0;
+          var dbOrder = context.MarketOrders.FirstOrDefault(x => x.AlbionId == marketOrder.AlbionId);
+          if (dbOrder != null)
+          {
+            logger.LogInformation($"Updating Market Order: {marketOrder}");
+            dbOrder.UpdatedAt = DateTime.UtcNow;
+            dbOrder.Amount = marketOrder.Amount;
+            dbOrder.LocationId = marketOrder.LocationId;
+            dbOrder.DeletedAt = null;
+            context.MarketOrders.Update(dbOrder);
+          }
+          else
+          {
+            logger.LogInformation($"Creating Market Order: {marketOrder}");
+            marketOrder.InitialAmount = marketOrder.Amount;
+            marketOrder.CreatedAt = DateTime.UtcNow;
+            marketOrder.UpdatedAt = DateTime.UtcNow;
+            if (marketOrder.Expires > DateTime.UtcNow.AddYears(1))
+            {
+              marketOrder.Expires = DateTime.UtcNow.AddDays(7);
+            }
+            context.MarketOrders.Add(marketOrder);
+          }
+          context.SaveChanges();
+        }
       }
       catch (Exception ex)
       {

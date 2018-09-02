@@ -2,7 +2,7 @@
   "profiles": {
     "albiondata-sql-dotNet": {
       "commandName": "Project",
-      "commandLineArgs": "-n nats://public:thenewalbiondata@localhost:4222"
+      "commandLineArgs": "-n nats://public:thenewalbiondata@albion-online-data.com:4222"
     }
   }
 }
