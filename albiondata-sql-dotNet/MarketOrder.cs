@@ -13,7 +13,7 @@ namespace albiondata_sql_dotNet
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-      optionsBuilder.UseMySQL(Program.SqlConnectionUrl);
+      DatabaseConfiguration.Configure(optionsBuilder);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -31,17 +31,32 @@ namespace albiondata_sql_dotNet
         entity.HasIndex(e => new { e.ItemTypeId, e.UpdatedAt, e.DeletedAt })
               .HasName("TypeId");
 
-        entity.Property(e => e.AlbionId).IsRequired();
-        entity.Property(e => e.Amount).HasColumnName("amount");
-        entity.Property(e => e.AuctionType).HasColumnName("auction_type");
-        entity.Property(e => e.EnchantmentLevel).HasColumnName("enchantment_level");
-        entity.Property(e => e.Expires).HasColumnName("expires");
-        entity.Property(e => e.Id).HasColumnName("id");
-        entity.Property(e => e.ItemGroupTypeId).HasMaxLength(128).HasColumnName("group_id");
-        entity.Property(e => e.ItemTypeId).HasMaxLength(128).HasColumnName("item_id");
-        entity.Property(e => e.LocationId).HasColumnName("location").IsRequired();
-        entity.Property(e => e.QualityLevel).HasColumnName("quality_level");
-        entity.Property(e => e.UnitPriceSilver).HasColumnName("price");
+        entity.Property(e => e.AlbionId)
+              .IsRequired();
+        entity.Property(e => e.Amount)
+              .HasColumnName("amount");
+        entity.Property(e => e.AuctionType)
+              .HasColumnName("auction_type")
+              .HasMaxLength(32);
+        entity.Property(e => e.EnchantmentLevel)
+              .HasColumnName("enchantment_level");
+        entity.Property(e => e.Expires)
+              .HasColumnName("expires");
+        entity.Property(e => e.Id)
+              .HasColumnName("id");
+        entity.Property(e => e.ItemGroupTypeId)
+              .HasColumnName("group_id")
+              .HasMaxLength(128);
+        entity.Property(e => e.ItemTypeId)
+              .HasColumnName("item_id")
+              .HasMaxLength(128);
+        entity.Property(e => e.LocationId)
+              .HasColumnName("location")
+              .IsRequired();
+        entity.Property(e => e.QualityLevel)
+              .HasColumnName("quality_level");
+        entity.Property(e => e.UnitPriceSilver)
+              .HasColumnName("price");
       });
     }
   }
@@ -79,10 +94,7 @@ namespace albiondata_sql_dotNet
     public int EnchantmentLevel { get; set; }
     public long UnitPriceSilver { get; set; }
     public long Amount { get; set; }
-
-    [MaxLength(32)]
     public string AuctionType { get; set; }
-
     public DateTime Expires { get; set; }
 
     public override string ToString()

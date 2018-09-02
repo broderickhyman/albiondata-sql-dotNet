@@ -61,17 +61,7 @@ namespace albiondata_sql_dotNet
       if (Debug)
         logger.LogInformation("Debugging enabled");
 
-      using (var context = new MarketOrderContext())
-      {
-        if (context.Database.EnsureCreated())
-        {
-          logger.LogInformation("Database Created");
-        }
-        else
-        {
-          logger.LogInformation("Database Exists");
-        }
-      }
+      DatabaseConfiguration.EnsureCreated();
 
       logger.LogInformation($"Nats URL: {NatsUrl}");
       logger.LogInformation($"NATS Connected, ID: {NatsConnection.ConnectedId}");
