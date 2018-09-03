@@ -45,7 +45,6 @@ namespace albiondata_sql_dotNet
     #endregion
     #region Subjects
     private const string marketOrdersDeduped = "marketorders.deduped";
-    private const string mapDataDeduped = "mapdata.deduped";
     private const string goldDataDeduped = "goldprices.deduped";
     #endregion
 
@@ -67,17 +66,13 @@ namespace albiondata_sql_dotNet
       logger.LogInformation($"NATS Connected, ID: {NatsConnection.ConnectedId}");
 
       var incomingMarketOrders = NatsConnection.SubscribeAsync(marketOrdersDeduped);
-      var incomingMapData = NatsConnection.SubscribeAsync(mapDataDeduped);
       var incomingGoldData = NatsConnection.SubscribeAsync(goldDataDeduped);
 
       incomingMarketOrders.MessageHandler += HandleMarketOrder;
-      incomingMapData.MessageHandler += HandleMapData;
       incomingGoldData.MessageHandler += HandleGoldData;
 
       incomingMarketOrders.Start();
       logger.LogInformation("Listening for Market Order Data");
-      incomingMapData.Start();
-      logger.LogInformation("Listening for Map Data");
       incomingGoldData.Start();
       logger.LogInformation("Listening for Gold Data");
 
@@ -91,7 +86,7 @@ namespace albiondata_sql_dotNet
       var message = args.Message;
       try
       {
-        using (var context = new MarketOrderContext())
+        using (var context = new MainContext())
         {
           var marketOrder = JsonConvert.DeserializeObject<MarketOrderDB>(Encoding.UTF8.GetString(message.Data));
           marketOrder.AlbionId = marketOrder.Id;
@@ -124,20 +119,6 @@ namespace albiondata_sql_dotNet
       catch (Exception ex)
       {
         logger.LogError(ex, "Error handling market order");
-      }
-    }
-
-    private static void HandleMapData(object sender, MsgHandlerEventArgs args)
-    {
-      var logger = CreateLogger<Program>();
-      var message = args.Message;
-      try
-      {
-        logger.LogInformation("Processing Map Data");
-      }
-      catch (Exception ex)
-      {
-        logger.LogError(ex, "Error handling map data");
       }
     }
 

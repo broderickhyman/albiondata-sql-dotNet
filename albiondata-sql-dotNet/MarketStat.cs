@@ -6,28 +6,6 @@ using System.Text;
 
 namespace albiondata_sql_dotNet
 {
-  public class MarketStatContext : DbContext
-  {
-    public DbSet<MarketStat> MarketStats { get; set; }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-      DatabaseConfiguration.Configure(optionsBuilder);
-    }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-      base.OnModelCreating(modelBuilder);
-
-      modelBuilder.Entity<MarketStat>(entity =>
-      {
-        entity.HasKey(e => e.Id);
-        entity.HasAlternateKey(e => new { e.ItemId, e.Location, e.TimeStamp });
-        entity.Property(e => e.ItemId).HasMaxLength(128);
-      });
-    }
-  }
-
   public class MarketStat
   {
     [Column("id")]

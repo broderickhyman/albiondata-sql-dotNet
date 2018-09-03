@@ -6,27 +6,6 @@ using System.Text;
 
 namespace albiondata_sql_dotNet
 {
-  public class GoldPriceContext : DbContext
-  {
-    public DbSet<GoldPrice> GoldPrices { get; set; }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-      DatabaseConfiguration.Configure(optionsBuilder);
-    }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-      base.OnModelCreating(modelBuilder);
-
-      modelBuilder.Entity<GoldPrice>(entity =>
-      {
-        entity.HasKey(e => e.Id);
-        entity.HasIndex(e => new { e.TimeStamp, e.DeletedAt });
-      });
-    }
-  }
-
   public class GoldPrice
   {
     [Column("created_at")]
