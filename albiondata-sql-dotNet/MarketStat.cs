@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text;
 
@@ -12,9 +13,11 @@ namespace albiondata_sql_dotNet
     public long Id { get; set; }
 
     [Column("item_id")]
+    [MaxLength(128)]
     public string ItemId { get; set; }
 
     [Column("location")]
+    [MaxLength(128)]
     public string Location { get; set; }
 
     [Column("price_avg")]

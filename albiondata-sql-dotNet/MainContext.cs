@@ -22,6 +22,7 @@ namespace albiondata_sql_dotNet
 
       modelBuilder.Entity<MarketOrderDB>(entity =>
       {
+        entity.ToTable("market_orders");
         entity.HasKey(e => e.Id);
         entity.HasAlternateKey(e => e.AlbionId)
               .HasName("AlbionId");
@@ -44,9 +45,9 @@ namespace albiondata_sql_dotNet
               .HasColumnName("expires");
         entity.Property(e => e.Id)
               .HasColumnName("id");
-        entity.Property(e => e.ItemGroupTypeId)
-              .HasColumnName("group_id")
-              .HasMaxLength(128);
+        //entity.Property(e => e.ItemGroupTypeId)
+        //      .HasColumnName("group_id")
+        //      .HasMaxLength(128);
         entity.Property(e => e.ItemTypeId)
               .HasColumnName("item_id")
               .HasMaxLength(128);
@@ -61,13 +62,14 @@ namespace albiondata_sql_dotNet
 
       modelBuilder.Entity<MarketStat>(entity =>
       {
+        entity.ToTable("market_stats");
         entity.HasKey(e => e.Id);
         entity.HasAlternateKey(e => new { e.ItemId, e.Location, e.TimeStamp });
-        entity.Property(e => e.ItemId).HasMaxLength(128);
       });
 
       modelBuilder.Entity<GoldPrice>(entity =>
       {
+        entity.ToTable("gold_prices");
         entity.HasKey(e => e.Id);
         entity.HasIndex(e => new { e.TimeStamp, e.DeletedAt });
       });

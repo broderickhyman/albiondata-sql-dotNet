@@ -34,7 +34,7 @@ namespace albiondata_sql_dotNet
   {
     public long Id { get; set; }
     public string ItemTypeId { get; set; }
-    public string ItemGroupTypeId { get; set; }
+    //public string ItemGroupTypeId { get; set; }
     public int LocationId { get; set; }
     public int QualityLevel { get; set; }
     public int EnchantmentLevel { get; set; }
