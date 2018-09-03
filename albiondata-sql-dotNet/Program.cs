@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client;
 using Newtonsoft.Json;
 using System;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -19,6 +20,14 @@ namespace albiondata_sql_dotNet
 
     [Option(Description = "SQL Connection Url", ShortName = "s", ShowInHelpText = true)]
     public static string SqlConnectionUrl { get; } = "SslMode=none;server=localhost;port=3306;database=albion;user=root;password=";
+
+    [Option(Description = "Check Every x Minutes for expired orders", ShortName = "e", ShowInHelpText = true)]
+    [Range(1, 120)]
+    public static int ExpireCheck { get; } = 10;
+
+    [Option(Description = "Max age in Days that orders exist before deletion", ShortName = "a", ShowInHelpText = true)]
+    [Range(1, 30)]
+    public static int MaxAge { get; } = 3;
 
     [Option(Description = "Enable Debug Logging", ShortName = "d", LongName = "debug", ShowInHelpText = true)]
     public static bool Debug { get; }
@@ -76,6 +85,8 @@ namespace albiondata_sql_dotNet
       incomingGoldData.Start();
       logger.LogInformation("Listening for Gold Data");
 
+      var expireTimer = new Timer(ExpireOrders, null, TimeSpan.Zero, TimeSpan.FromMinutes(ExpireCheck));
+
       quitEvent.WaitOne();
       NatsConnection.Close();
     }
@@ -122,6 +133,25 @@ namespace albiondata_sql_dotNet
       }
     }
 
+    private static void ExpireOrders(object state)
+    {
+      var logger = CreateLogger<Program>();
+      logger.LogInformation("Checking for expired orders");
+      using (var context = new MainContext())
+      {
+        var now = DateTime.UtcNow;
+        var count = 0;
+        foreach (var expiredOrder in context.MarketOrders.Where(x => x.DeletedAt == null && (x.Expires < now || x.UpdatedAt < now.AddDays(-MaxAge))))
+        {
+          count++;
+          expiredOrder.DeletedAt = DateTime.UtcNow;
+          context.MarketOrders.Update(expiredOrder);
+        }
+        logger.LogInformation($"{count} orders expired");
+        context.SaveChanges();
+      }
+    }
+
     private static void HandleGoldData(object sender, MsgHandlerEventArgs args)
     {
       var logger = CreateLogger<Program>();
@@ -129,6 +159,38 @@ namespace albiondata_sql_dotNet
       try
       {
         logger.LogInformation("Processing Gold Data");
+        var upload = JsonConvert.DeserializeObject<GoldPriceUpload>(Encoding.UTF8.GetString(message.Data));
+        if (upload.Prices.Length != upload.TimeStamps.Length) throw new Exception("Different list lengths");
+        using (var context = new MainContext())
+        {
+          for (var i = 0; i < upload.Prices.Length; i++)
+          {
+            var price = upload.Prices[i];
+            var timestamp = new DateTime(upload.TimeStamps[i], DateTimeKind.Utc);
+            var dbGold = context.GoldPrices.FirstOrDefault(x => x.TimeStamp == timestamp);
+            if (dbGold != null)
+            {
+              if (dbGold.Price != price)
+              {
+                dbGold.UpdatedAt = DateTime.UtcNow;
+                dbGold.Price = price;
+                context.GoldPrices.Update(dbGold);
+              }
+            }
+            else
+            {
+              var goldPrice = new GoldPrice()
+              {
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Price = price,
+                TimeStamp = timestamp
+              };
+              context.GoldPrices.Add(dbGold);
+            }
+          }
+          context.SaveChanges();
+        }
       }
       catch (Exception ex)
       {

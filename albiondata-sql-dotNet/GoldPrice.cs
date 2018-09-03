@@ -26,4 +26,10 @@ namespace albiondata_sql_dotNet
     [Column("updated_at")]
     public DateTime UpdatedAt { get; set; }
   }
+
+  public class GoldPriceUpload
+  {
+    public int[] Prices;
+    public long[] TimeStamps;
+  }
 }
