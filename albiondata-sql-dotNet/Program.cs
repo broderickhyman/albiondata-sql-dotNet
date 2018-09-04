@@ -158,8 +158,10 @@ namespace albiondata_sql_dotNet
           expiredOrder.DeletedAt = DateTime.UtcNow;
           context.MarketOrders.Update(expiredOrder);
         }
-        logger.LogInformation($"{count} orders expired");
+        if (count > 0)
+          logger.LogInformation($"Expiring {count} orders...");
         context.SaveChanges();
+        logger.LogInformation($"{count} orders expired");
       }
     }
 

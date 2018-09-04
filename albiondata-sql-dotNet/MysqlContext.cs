@@ -7,7 +7,7 @@ namespace albiondata_sql_dotNet
   {
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-      optionsBuilder.UseMySQL(Program.SqlConnectionUrl);
+      optionsBuilder.UseMySql(Program.SqlConnectionUrl);
     }
   }
 }
