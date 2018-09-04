@@ -1,5 +1,5 @@
-﻿using McMaster.Extensions.CommandLineUtils;
-using Microsoft.EntityFrameworkCore;
+﻿using AlbionData.Models;
+using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Logging;
 using NATS.Client;
 using Newtonsoft.Json;
@@ -69,7 +69,18 @@ namespace albiondata_sql_dotNet
       if (Debug)
         logger.LogInformation("Debugging enabled");
 
-      DatabaseConfiguration.EnsureCreated();
+      using (var context = new MysqlContext())
+      {
+        if (context.Database.EnsureCreated())
+        {
+          logger.LogInformation("Database Created");
+          context.SaveChanges();
+        }
+        else
+        {
+          logger.LogInformation("Database Exists");
+        }
+      }
 
       logger.LogInformation($"Nats URL: {NatsUrl}");
       logger.LogInformation($"NATS Connected, ID: {NatsConnection.ConnectedId}");
@@ -97,7 +108,7 @@ namespace albiondata_sql_dotNet
       var message = args.Message;
       try
       {
-        using (var context = new MainContext())
+        using (var context = new MysqlContext())
         {
           var marketOrder = JsonConvert.DeserializeObject<MarketOrderDB>(Encoding.UTF8.GetString(message.Data));
           marketOrder.AlbionId = marketOrder.Id;
@@ -137,7 +148,7 @@ namespace albiondata_sql_dotNet
     {
       var logger = CreateLogger<Program>();
       logger.LogInformation("Checking for expired orders");
-      using (var context = new MainContext())
+      using (var context = new MysqlContext())
       {
         var now = DateTime.UtcNow;
         var count = 0;
@@ -161,7 +172,7 @@ namespace albiondata_sql_dotNet
         logger.LogInformation("Processing Gold Data");
         var upload = JsonConvert.DeserializeObject<GoldPriceUpload>(Encoding.UTF8.GetString(message.Data));
         if (upload.Prices.Length != upload.TimeStamps.Length) throw new Exception("Different list lengths");
-        using (var context = new MainContext())
+        using (var context = new MysqlContext())
         {
           for (var i = 0; i < upload.Prices.Length; i++)
           {
