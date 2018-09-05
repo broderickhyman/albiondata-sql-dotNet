@@ -69,7 +69,7 @@ namespace albiondata_sql_dotNet
       if (Debug)
         logger.LogInformation("Debugging enabled");
 
-      using (var context = new MysqlContext())
+      using (var context = new ConfiguredContext())
       {
         if (context.Database.EnsureCreated())
         {
@@ -108,7 +108,7 @@ namespace albiondata_sql_dotNet
       var message = args.Message;
       try
       {
-        using (var context = new MysqlContext())
+        using (var context = new ConfiguredContext())
         {
           var marketOrder = JsonConvert.DeserializeObject<MarketOrderDB>(Encoding.UTF8.GetString(message.Data));
           marketOrder.AlbionId = marketOrder.Id;
@@ -148,7 +148,7 @@ namespace albiondata_sql_dotNet
     {
       var logger = CreateLogger<Program>();
       logger.LogInformation("Checking for expired orders");
-      using (var context = new MysqlContext())
+      using (var context = new ConfiguredContext())
       {
         var now = DateTime.UtcNow;
         var count = 0;
@@ -174,7 +174,7 @@ namespace albiondata_sql_dotNet
         logger.LogInformation("Processing Gold Data");
         var upload = JsonConvert.DeserializeObject<GoldPriceUpload>(Encoding.UTF8.GetString(message.Data));
         if (upload.Prices.Length != upload.TimeStamps.Length) throw new Exception("Different list lengths");
-        using (var context = new MysqlContext())
+        using (var context = new ConfiguredContext())
         {
           for (var i = 0; i < upload.Prices.Length; i++)
           {
