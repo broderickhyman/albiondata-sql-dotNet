@@ -37,6 +37,8 @@ namespace albiondata_sql_dotNet
 
     private static readonly ManualResetEvent quitEvent = new ManualResetEvent(false);
 
+    private static ulong updatedCounter = 0;
+
     #region Connections
     private static readonly Lazy<IConnection> lazyNats = new Lazy<IConnection>(() =>
     {
@@ -116,7 +118,7 @@ namespace albiondata_sql_dotNet
           var dbOrder = context.MarketOrders.FirstOrDefault(x => x.AlbionId == marketOrder.AlbionId);
           if (dbOrder != null)
           {
-            logger.LogInformation($"Updating Market Order: {marketOrder}");
+            //Console.WriteLine($"Updating Market: Price:{marketOrder.UnitPriceSilver} - {marketOrder}");
             dbOrder.UpdatedAt = DateTime.UtcNow;
             dbOrder.Amount = marketOrder.Amount;
             dbOrder.LocationId = marketOrder.LocationId;
@@ -125,7 +127,7 @@ namespace albiondata_sql_dotNet
           }
           else
           {
-            logger.LogInformation($"Creating Market Order: {marketOrder}");
+            //Console.WriteLine($"Creating Market: Price:{marketOrder.UnitPriceSilver} - {marketOrder}");
             marketOrder.InitialAmount = marketOrder.Amount;
             marketOrder.CreatedAt = DateTime.UtcNow;
             marketOrder.UpdatedAt = DateTime.UtcNow;
@@ -136,6 +138,8 @@ namespace albiondata_sql_dotNet
             context.MarketOrders.Add(marketOrder);
           }
           context.SaveChanges();
+          updatedCounter++;
+          if (updatedCounter % 100 == 0) logger.LogInformation($"Updated/Created {updatedCounter} Market Orders");
         }
       }
       catch (Exception ex)
