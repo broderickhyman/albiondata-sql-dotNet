@@ -163,7 +163,7 @@ namespace albiondata_sql_dotNet
         while (changes)
         {
           changes = false;
-          foreach (var expiredOrder in context.MarketOrders.Where(x => x.DeletedAt == null && (x.Expires < now || x.UpdatedAt < now.AddDays(-MaxAge))).Take(5000))
+          foreach (var expiredOrder in context.MarketOrders.Where(x => x.DeletedAt == null && (x.Expires < now || x.UpdatedAt < now.AddDays(-MaxAge))).Take(1000))
           {
             changes = true;
             incrCount++;
@@ -177,6 +177,7 @@ namespace albiondata_sql_dotNet
             totalCount += incrCount;
             incrCount = 0;
           }
+          Thread.Sleep(1000);
         }
         logger.LogInformation($"{totalCount} orders expired");
       }
