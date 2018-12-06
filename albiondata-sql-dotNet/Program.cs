@@ -157,17 +157,28 @@ namespace albiondata_sql_dotNet
       using (var context = new ConfiguredContext())
       {
         var now = DateTime.UtcNow;
-        var count = 0;
-        foreach (var expiredOrder in context.MarketOrders.Where(x => x.DeletedAt == null && (x.Expires < now || x.UpdatedAt < now.AddDays(-MaxAge))))
+        var incrCount = 0;
+        var totalCount = 0;
+        var changes = true;
+        while (changes)
         {
-          count++;
-          expiredOrder.DeletedAt = DateTime.UtcNow;
-          context.MarketOrders.Update(expiredOrder);
+          changes = false;
+          foreach (var expiredOrder in context.MarketOrders.Where(x => x.DeletedAt == null && (x.Expires < now || x.UpdatedAt < now.AddDays(-MaxAge))).Take(5000))
+          {
+            changes = true;
+            incrCount++;
+            expiredOrder.DeletedAt = DateTime.UtcNow;
+            context.MarketOrders.Update(expiredOrder);
+          }
+          if (changes)
+          {
+            logger.LogInformation($"Expiring {incrCount} orders...");
+            context.SaveChanges();
+            totalCount += incrCount;
+            incrCount = 0;
+          }
         }
-        if (count > 0)
-          logger.LogInformation($"Expiring {count} orders...");
-        context.SaveChanges();
-        logger.LogInformation($"{count} orders expired");
+        logger.LogInformation($"{totalCount} orders expired");
       }
     }
 
