@@ -5,6 +5,7 @@ using NATS.Client;
 using Newtonsoft.Json;
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -152,35 +153,43 @@ namespace albiondata_sql_dotNet
 
     private static void ExpireOrders(object state)
     {
-      var logger = CreateLogger<Program>();
-      logger.LogInformation("Checking for expired orders");
-      using (var context = new ConfiguredContext())
+      try
       {
-        var now = DateTime.UtcNow;
-        var incrCount = 0;
-        var totalCount = 0;
-        var changes = true;
-        while (changes)
+        File.WriteAllText("last-run.txt", DateTime.Now.ToString("F"));
+
+        var logger = CreateLogger<Program>();
+        logger.LogInformation("Checking for expired orders");
+        using (var context = new ConfiguredContext())
         {
-          changes = false;
-          foreach (var expiredOrder in context.MarketOrders.Where(x => x.DeletedAt == null && (x.Expires < now || x.UpdatedAt < now.AddDays(-MaxAge))).Take(1000))
+          var now = DateTime.UtcNow;
+          var incrCount = 0;
+          var totalCount = 0;
+          var changes = true;
+          var needsExpiring = context.MarketOrders.Count(x => x.DeletedAt == null && (x.Expires < now || x.UpdatedAt < now.AddDays(-MaxAge)));
+          while (changes)
           {
-            changes = true;
-            incrCount++;
-            expiredOrder.DeletedAt = DateTime.UtcNow;
-            context.MarketOrders.Update(expiredOrder);
+            changes = false;
+            foreach (var expiredOrder in context.MarketOrders.Where(x => x.DeletedAt == null && (x.Expires < now || x.UpdatedAt < now.AddDays(-MaxAge))).Take(1000))
+            {
+              changes = true;
+              incrCount++;
+              expiredOrder.DeletedAt = DateTime.UtcNow;
+              context.MarketOrders.Update(expiredOrder);
+            }
+            if (changes)
+            {
+              logger.LogInformation($"Expired {totalCount}/{needsExpiring} orders...");
+              logger.LogInformation($"Roughly {needsExpiring - totalCount} left.");
+              context.SaveChanges();
+              totalCount += incrCount;
+              incrCount = 0;
+            }
+            Thread.Sleep(1000);
           }
-          if (changes)
-          {
-            logger.LogInformation($"Expiring {incrCount} orders...");
-            context.SaveChanges();
-            totalCount += incrCount;
-            incrCount = 0;
-          }
-          Thread.Sleep(1000);
+          logger.LogInformation($"{totalCount} orders expired");
         }
-        logger.LogInformation($"{totalCount} orders expired");
       }
+      catch { }
     }
 
     private static void HandleGoldData(object sender, MsgHandlerEventArgs args)
