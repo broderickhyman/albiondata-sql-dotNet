@@ -155,13 +155,13 @@ namespace albiondata_sql_dotNet
     {
       try
       {
-        File.WriteAllText("last-run.txt", DateTime.Now.ToString("F"));
+        var now = DateTime.Now;
+        File.AppendAllText("last-run.txt", now.ToString("F") + Environment.NewLine);
 
         var logger = CreateLogger<Program>();
         logger.LogInformation("Checking for expired orders");
         using (var context = new ConfiguredContext())
         {
-          var now = DateTime.UtcNow;
           var incrCount = 0;
           var totalCount = 0;
           var changes = true;
@@ -185,11 +185,18 @@ namespace albiondata_sql_dotNet
               incrCount = 0;
             }
             Thread.Sleep(1000);
+            if ((DateTime.Now - now).TotalMinutes > ExpireCheck * 0.75)
+            {
+              changes = false;
+            }
           }
           logger.LogInformation($"{totalCount} orders expired");
         }
       }
-      catch { }
+      catch (Exception ex)
+      {
+        File.AppendAllText("last-run.txt", DateTime.Now.ToString("F") + Environment.NewLine + ex.ToString() + Environment.NewLine);
+      }
     }
 
     private static void HandleGoldData(object sender, MsgHandlerEventArgs args)
