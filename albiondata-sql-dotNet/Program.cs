@@ -100,6 +100,9 @@ namespace albiondata_sql_dotNet
       incomingGoldData.Start();
       logger.LogInformation("Listening for Gold Data");
 
+      logger.LogInformation($"Checking Every {ExpireCheckMinutes} Minutes for expired orders.");
+      logger.LogInformation($"Deleting orders after {MaxAgeDays} days");
+
       var expireTimer = new Timer(ExpireOrders, null, TimeSpan.Zero, TimeSpan.FromMinutes(ExpireCheckMinutes));
 
       quitEvent.WaitOne();
