@@ -1,5 +1,6 @@
 ﻿using AlbionData.Models;
 using McMaster.Extensions.CommandLineUtils;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NATS.Client;
 using Newtonsoft.Json;
@@ -24,11 +25,11 @@ namespace albiondata_sql_dotNet
 
     [Option(Description = "Check Every x Minutes for expired orders", ShortName = "e", ShowInHelpText = true)]
     [Range(1, 120)]
-    public static int ExpireCheck { get; } = 10;
+    public static int ExpireCheckMinutes { get; } = 10;
 
     [Option(Description = "Max age in Days that orders exist before deletion", ShortName = "a", ShowInHelpText = true)]
     [Range(1, 30)]
-    public static int MaxAge { get; } = 3;
+    public static int MaxAgeDays { get; } = 3;
 
     [Option(Description = "Enable Debug Logging", ShortName = "d", LongName = "debug", ShowInHelpText = true)]
     public static bool Debug { get; }
@@ -99,7 +100,7 @@ namespace albiondata_sql_dotNet
       incomingGoldData.Start();
       logger.LogInformation("Listening for Gold Data");
 
-      var expireTimer = new Timer(ExpireOrders, null, TimeSpan.Zero, TimeSpan.FromMinutes(ExpireCheck));
+      var expireTimer = new Timer(ExpireOrders, null, TimeSpan.Zero, TimeSpan.FromMinutes(ExpireCheckMinutes));
 
       quitEvent.WaitOne();
       NatsConnection.Close();
@@ -155,39 +156,42 @@ namespace albiondata_sql_dotNet
     {
       try
       {
-        var now = DateTime.Now;
-        File.AppendAllText("last-run.txt", now.ToString("F") + Environment.NewLine);
+        var start = DateTime.Now;
+        File.AppendAllText("last-run.txt", start.ToString("F") + Environment.NewLine);
 
         var logger = CreateLogger<Program>();
         logger.LogInformation("Checking for expired orders");
         using (var context = new ConfiguredContext())
         {
-          var incrCount = 0;
+          const int batchSize = 10000;
+          var incrementalCount = 0;
           var totalCount = 0;
-          var changes = true;
-          var needsExpiring = context.MarketOrders.Count(x => x.DeletedAt == null && (x.Expires < now || x.UpdatedAt < now.AddDays(-MaxAge)));
-          while (changes)
+          var changesLeft = true;
+          while (changesLeft)
           {
-            changes = false;
-            foreach (var expiredOrder in context.MarketOrders.Where(x => x.DeletedAt == null && (x.Expires < now || x.UpdatedAt < now.AddDays(-MaxAge))).Take(1000))
+            changesLeft = false;
+            incrementalCount = context.Database.ExecuteSqlCommand(@"UPDATE market_orders m
+SET m.deleted_at = UTC_DATE()
+WHERE m.deleted_at IS NULL
+AND
+(
+m.expires < UTC_DATE()
+OR
+m.updated_at < DATE_ADD(UTC_DATE(),INTERVAL -{0} DAY)
+)
+LIMIT {1}", MaxAgeDays, batchSize);
+            totalCount += incrementalCount;
+
+            logger.LogInformation($"Expired {incrementalCount} orders...");
+            if (incrementalCount == batchSize)
             {
-              changes = true;
-              incrCount++;
-              expiredOrder.DeletedAt = DateTime.UtcNow;
-              context.MarketOrders.Update(expiredOrder);
+              changesLeft = true;
             }
-            if (changes)
+            Thread.Sleep(10000);
+            // We have been deleting for too long, kill this thread
+            if ((DateTime.Now - start).TotalMinutes > ExpireCheckMinutes * 0.75)
             {
-              logger.LogInformation($"Expired {totalCount}/{needsExpiring} orders...");
-              logger.LogInformation($"Roughly {needsExpiring - totalCount} left.");
-              context.SaveChanges();
-              totalCount += incrCount;
-              incrCount = 0;
-            }
-            Thread.Sleep(1000);
-            if ((DateTime.Now - now).TotalMinutes > ExpireCheck * 0.75)
-            {
-              changes = false;
+              changesLeft = false;
             }
           }
           logger.LogInformation($"{totalCount} orders expired");
