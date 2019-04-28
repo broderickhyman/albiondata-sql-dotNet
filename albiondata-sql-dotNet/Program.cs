@@ -240,7 +240,7 @@ LIMIT {1}", MaxAgeDays, batchSize);
                 Price = price,
                 TimeStamp = timestamp
               };
-              context.GoldPrices.Add(dbGold);
+              context.GoldPrices.Add(goldPrice);
             }
           }
           context.SaveChanges();
