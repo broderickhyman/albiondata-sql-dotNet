@@ -24,12 +24,12 @@ namespace albiondata_sql_dotNet
     public static string SqlConnectionUrl { get; } = "SslMode=none;server=localhost;port=3306;database=albion;user=root;password=";
 
     [Option(Description = "Check Every x Minutes for expired orders", ShortName = "e", ShowInHelpText = true)]
-    [Range(1, 120)]
-    public static int ExpireCheckMinutes { get; } = 10;
+    [Range(1, 1440)]
+    public static int ExpireCheckMinutes { get; } = 60;
 
     [Option(Description = "Max age in Hours that orders exist before deletion", ShortName = "a", ShowInHelpText = true)]
-    [Range(1, 36)]
-    public static int MaxAgeHours { get; } = 12;
+    [Range(1, 168)]
+    public static int MaxAgeHours { get; } = 24;
 
     [Option(Description = "Enable Debug Logging", ShortName = "d", LongName = "debug", ShowInHelpText = true)]
     public static bool Debug { get; }
