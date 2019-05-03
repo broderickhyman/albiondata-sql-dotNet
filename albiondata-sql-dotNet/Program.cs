@@ -27,9 +27,9 @@ namespace albiondata_sql_dotNet
     [Range(1, 120)]
     public static int ExpireCheckMinutes { get; } = 10;
 
-    [Option(Description = "Max age in Days that orders exist before deletion", ShortName = "a", ShowInHelpText = true)]
-    [Range(1, 30)]
-    public static int MaxAgeDays { get; } = 3;
+    [Option(Description = "Max age in Hours that orders exist before deletion", ShortName = "a", ShowInHelpText = true)]
+    [Range(1, 36)]
+    public static int MaxAgeHours { get; } = 12;
 
     [Option(Description = "Enable Debug Logging", ShortName = "d", LongName = "debug", ShowInHelpText = true)]
     public static bool Debug { get; }
@@ -101,7 +101,7 @@ namespace albiondata_sql_dotNet
       logger.LogInformation("Listening for Gold Data");
 
       logger.LogInformation($"Checking Every {ExpireCheckMinutes} Minutes for expired orders.");
-      logger.LogInformation($"Deleting orders after {MaxAgeDays} days");
+      logger.LogInformation($"Deleting orders after {MaxAgeHours} hours");
 
       var expireTimer = new Timer(ExpireOrders, null, TimeSpan.Zero, TimeSpan.FromMinutes(ExpireCheckMinutes));
 
@@ -180,9 +180,9 @@ AND
 (
 m.expires < UTC_DATE()
 OR
-m.updated_at < DATE_ADD(UTC_DATE(),INTERVAL -{0} DAY)
+m.updated_at < DATE_ADD(UTC_DATE(),INTERVAL -{0} HOUR)
 )
-LIMIT {1}", MaxAgeDays, batchSize);
+LIMIT {1}", MaxAgeHours, batchSize);
             totalCount += incrementalCount;
 
             logger.LogInformation($"Expired {incrementalCount} orders...");
