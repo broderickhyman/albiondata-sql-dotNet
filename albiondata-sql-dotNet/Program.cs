@@ -41,6 +41,8 @@ namespace albiondata_sql_dotNet
 
     private static ulong updatedCounter = 0;
 
+    private static Timer expireTimer = new Timer(ExpireOrders, null, Timeout.Infinite, Timeout.Infinite);
+
     #region Connections
     private static readonly Lazy<IConnection> lazyNats = new Lazy<IConnection>(() =>
     {
@@ -103,7 +105,7 @@ namespace albiondata_sql_dotNet
       logger.LogInformation($"Checking Every {ExpireCheckMinutes} Minutes for expired orders.");
       logger.LogInformation($"Deleting orders after {MaxAgeHours} hours");
 
-      var expireTimer = new Timer(ExpireOrders, null, TimeSpan.Zero, TimeSpan.FromMinutes(ExpireCheckMinutes));
+      expireTimer.Change(TimeSpan.Zero, TimeSpan.FromMinutes(ExpireCheckMinutes));
 
       quitEvent.WaitOne();
       NatsConnection.Close();
