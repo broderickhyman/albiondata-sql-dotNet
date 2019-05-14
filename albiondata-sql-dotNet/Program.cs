@@ -168,7 +168,8 @@ namespace albiondata_sql_dotNet
         logger.LogInformation("Checking for expired orders");
         using (var context = new ConfiguredContext())
         {
-          const int batchSize = 10000;
+          const int batchSize = 50000;
+          var sleepTime = TimeSpan.FromSeconds(10);
           var incrementalCount = 0;
           var totalCount = 0;
           var changesLeft = true;
@@ -185,14 +186,40 @@ OR
 m.updated_at < DATE_ADD(UTC_DATE(),INTERVAL -{0} HOUR)
 )
 LIMIT {1}", MaxAgeHours, batchSize);
+
+            Thread.Sleep(sleepTime);
+            incrementalCount += context.Database.ExecuteSqlCommand(@"INSERT INTO market_orders_expired
+(`id`, `item_id`, `location`, `quality_level`, `enchantment_level`, `price`, `amount`, `auction_type`, `expires`, `albion_id`, `initial_amount`, `created_at`, `updated_at`, `deleted_at`)
+SELECT m.`id`, m.`item_id`, m.`location`, m.`quality_level`, m.`enchantment_level`, m.`price`, m.`amount`, m.`auction_type`, m.`expires`, m.`albion_id`, m.`initial_amount`, m.`created_at`, m.`updated_at`, m.`deleted_at`
+FROM market_orders m
+WHERE m.deleted_at IS NOT NULL
+LIMIT {0}
+ON DUPLICATE KEY UPDATE amount=m.amount,location=m.location,updated_at=m.updated_at,deleted_at=m.deleted_at
+;", batchSize);
+
+            Thread.Sleep(sleepTime);
+            incrementalCount += context.Database.ExecuteSqlCommand(@"DELETE mo
+FROM market_orders mo
+INNER JOIN (
+SELECT
+m.albion_id
+FROM market_orders m
+INNER JOIN market_orders_expired e ON e.albion_id = m.albion_id
+WHERE m.deleted_at IS NOT NULL
+LIMIT {0}
+) del ON del.albion_id = mo.albion_id
+;", batchSize);
+
+            Thread.Sleep(sleepTime);
+
+            incrementalCount /= 3;
             totalCount += incrementalCount;
 
             logger.LogInformation($"Expired {incrementalCount} orders...");
-            if (incrementalCount == batchSize)
+            if (incrementalCount >= batchSize)
             {
               changesLeft = true;
             }
-            Thread.Sleep(10000);
             // We have been deleting for too long, kill this thread
             if ((DateTime.Now - start).TotalMinutes > ExpireCheckMinutes * 0.75)
             {
