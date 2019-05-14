@@ -19,7 +19,7 @@ namespace albiondata_sql_dotNet
     {
       base.OnModelCreating(modelBuilder);
 
-      modelBuilder.Entity<MarketOrderDB>(entity =>
+      modelBuilder.Entity<MarketOrderExpiredDB>(entity =>
       {
         entity.ToTable("market_orders_expired");
         entity.HasKey(e => e.Id);
