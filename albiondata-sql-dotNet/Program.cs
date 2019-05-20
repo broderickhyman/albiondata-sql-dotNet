@@ -172,6 +172,7 @@ namespace albiondata_sql_dotNet
           var sleepTime = TimeSpan.FromSeconds(10);
           var incrementalCount = 0;
           var totalCount = 0;
+          var prevTotalCount = totalCount;
           var changesLeft = true;
           while (changesLeft)
           {
@@ -186,9 +187,11 @@ OR
 m.updated_at < DATE_ADD(UTC_DATE(),INTERVAL -{0} HOUR)
 )
 LIMIT {1}", MaxAgeHours, batchSize);
+            logger.LogInformation($"Soft deleted {incrementalCount} records");
+            totalCount += incrementalCount;
 
             Thread.Sleep(sleepTime);
-            incrementalCount += context.Database.ExecuteSqlCommand(@"INSERT INTO market_orders_expired
+            incrementalCount = context.Database.ExecuteSqlCommand(@"INSERT INTO market_orders_expired
 (`id`, `item_id`, `location`, `quality_level`, `enchantment_level`, `price`, `amount`, `auction_type`, `expires`, `albion_id`, `initial_amount`, `created_at`, `updated_at`, `deleted_at`)
 SELECT m.`id`, m.`item_id`, m.`location`, m.`quality_level`, m.`enchantment_level`, m.`price`, m.`amount`, m.`auction_type`, m.`expires`, m.`albion_id`, m.`initial_amount`, m.`created_at`, m.`updated_at`, m.`deleted_at`
 FROM (
@@ -209,9 +212,11 @@ FROM (
 ) AS m
 ON DUPLICATE KEY UPDATE amount=m.amount,location=m.location,updated_at=m.updated_at,deleted_at=m.deleted_at
 ;", batchSize);
+            logger.LogInformation($"Inserted/Updated {incrementalCount} records in the expired table");
+            totalCount += incrementalCount;
 
             Thread.Sleep(sleepTime);
-            incrementalCount += context.Database.ExecuteSqlCommand(@"DELETE mo
+            incrementalCount = context.Database.ExecuteSqlCommand(@"DELETE mo
 FROM market_orders mo
 INNER JOIN (
   SELECT
@@ -222,14 +227,11 @@ INNER JOIN (
   LIMIT {0}
 ) del ON del.albion_id = mo.albion_id
 ;", batchSize);
-
-            Thread.Sleep(sleepTime);
-
-            incrementalCount /= 3;
+            logger.LogInformation($"Deleted {incrementalCount} records from the main table");
             totalCount += incrementalCount;
 
-            logger.LogInformation($"Expired {incrementalCount} orders...");
-            if (incrementalCount > 0)
+            Thread.Sleep(sleepTime);
+            if (prevTotalCount != totalCount)
             {
               changesLeft = true;
             }
@@ -239,8 +241,9 @@ INNER JOIN (
               logger.LogInformation("Killing long running thread");
               changesLeft = false;
             }
+            prevTotalCount = totalCount;
           }
-          logger.LogInformation($"{totalCount} orders expired");
+          logger.LogInformation($"{totalCount} total updates");
         }
       }
       catch (Exception ex)
