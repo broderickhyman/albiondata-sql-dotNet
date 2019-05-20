@@ -236,6 +236,7 @@ INNER JOIN (
             // We have been deleting for too long, kill this thread
             if ((DateTime.Now - start).TotalMinutes > ExpireCheckMinutes * 0.75)
             {
+              logger.LogInformation("Killing long running thread");
               changesLeft = false;
             }
           }
