@@ -192,8 +192,8 @@ LIMIT {1}", MaxAgeHours, batchSize);
 
             Thread.Sleep(sleepTime);
             incrementalCount = context.Database.ExecuteSqlCommand(@"INSERT INTO market_orders_expired
-(`id`, `item_id`, `location`, `quality_level`, `enchantment_level`, `price`, `amount`, `auction_type`, `expires`, `albion_id`, `initial_amount`, `created_at`, `updated_at`, `deleted_at`)
-SELECT m.`id`, m.`item_id`, m.`location`, m.`quality_level`, m.`enchantment_level`, m.`price`, m.`amount`, m.`auction_type`, m.`expires`, m.`albion_id`, m.`initial_amount`, m.`created_at`, m.`updated_at`, m.`deleted_at`
+(`item_id`, `location`, `quality_level`, `enchantment_level`, `price`, `amount`, `auction_type`, `expires`, `albion_id`, `initial_amount`, `created_at`, `updated_at`, `deleted_at`)
+SELECT m.`item_id`, m.`location`, m.`quality_level`, m.`enchantment_level`, m.`price`, m.`amount`, m.`auction_type`, m.`expires`, m.`albion_id`, m.`initial_amount`, m.`created_at`, m.`updated_at`, m.`deleted_at`
 FROM (
 	SELECT o.*
 	from market_orders o
