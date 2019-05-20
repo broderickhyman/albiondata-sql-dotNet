@@ -191,9 +191,22 @@ LIMIT {1}", MaxAgeHours, batchSize);
             incrementalCount += context.Database.ExecuteSqlCommand(@"INSERT INTO market_orders_expired
 (`id`, `item_id`, `location`, `quality_level`, `enchantment_level`, `price`, `amount`, `auction_type`, `expires`, `albion_id`, `initial_amount`, `created_at`, `updated_at`, `deleted_at`)
 SELECT m.`id`, m.`item_id`, m.`location`, m.`quality_level`, m.`enchantment_level`, m.`price`, m.`amount`, m.`auction_type`, m.`expires`, m.`albion_id`, m.`initial_amount`, m.`created_at`, m.`updated_at`, m.`deleted_at`
-FROM market_orders m
-WHERE m.deleted_at IS NOT NULL
-LIMIT {0}
+FROM (
+	SELECT o.*
+	from market_orders o
+	LEFT JOIN market_orders_expired e ON e.albion_id = o.albion_id
+	WHERE o.deleted_at IS NOT NULL
+	AND (
+		e.id IS NULL -- Doesn't exist in expired
+		OR	(
+			e.id IS NOT NULL -- Exists in expired
+			AND
+			e.deleted_at <> o.deleted_at -- It was updated since last insertion
+		)
+	)
+	ORDER BY o.deleted_at desc
+  LIMIT {0}
+) AS m
 ON DUPLICATE KEY UPDATE amount=m.amount,location=m.location,updated_at=m.updated_at,deleted_at=m.deleted_at
 ;", batchSize);
 
@@ -201,12 +214,12 @@ ON DUPLICATE KEY UPDATE amount=m.amount,location=m.location,updated_at=m.updated
             incrementalCount += context.Database.ExecuteSqlCommand(@"DELETE mo
 FROM market_orders mo
 INNER JOIN (
-SELECT
-m.albion_id
-FROM market_orders m
-INNER JOIN market_orders_expired e ON e.albion_id = m.albion_id
-WHERE m.deleted_at IS NOT NULL
-LIMIT {0}
+  SELECT
+  m.albion_id
+  FROM market_orders m
+  INNER JOIN market_orders_expired e ON e.albion_id = m.albion_id
+  WHERE m.deleted_at IS NOT NULL
+  LIMIT {0}
 ) del ON del.albion_id = mo.albion_id
 ;", batchSize);
 
@@ -216,7 +229,7 @@ LIMIT {0}
             totalCount += incrementalCount;
 
             logger.LogInformation($"Expired {incrementalCount} orders...");
-            if (incrementalCount >= batchSize)
+            if (incrementalCount > 0)
             {
               changesLeft = true;
             }
