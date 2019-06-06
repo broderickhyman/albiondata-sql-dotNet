@@ -21,7 +21,7 @@ namespace albiondata_sql_dotNet
     public static string NatsUrl { get; } = "nats://public:thenewalbiondata@localhost:4222";
 
     [Option(Description = "SQL Connection Url", ShortName = "s", ShowInHelpText = true)]
-    public static string SqlConnectionUrl { get; } = "SslMode=none;server=localhost;port=3306;database=albion;user=root;password=";
+    public static string SqlConnectionUrl { get; } = "server=localhost;port=3306;database=albion;user=root;password=";
 
     [Option(Description = "Check Every x Minutes for expired orders", ShortName = "e", ShowInHelpText = true)]
     [Range(1, 1440)]
