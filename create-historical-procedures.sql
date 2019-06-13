@@ -1,4 +1,7 @@
-USE albion;
+DELIMITER $$
+
+USE albion
+$$
 
 /** TABLE market_stats **/
 CREATE TABLE IF NOT EXISTS `market_stats` (
@@ -17,10 +20,12 @@ CREATE TABLE IF NOT EXISTS `market_stats` (
 COLLATE='latin1_swedish_ci'
 ENGINE=InnoDB
 AUTO_INCREMENT=0
-;
+$$
 
 
-DROP PROCEDURE IF EXISTS `execute_stmt`;
+
+DROP PROCEDURE IF EXISTS `execute_stmt`
+$$
 
 CREATE PROCEDURE `execute_stmt`(
 	IN `sql_text` TEXT
@@ -39,11 +44,14 @@ BEGIN
     PREPARE stmt FROM @SQL;
     EXECUTE stmt;
     DEALLOCATE PREPARE stmt;
-END;
+END
+$$
+
 
 
 /** PROCEDURE `create_hour_stats` creates stats in all locations for the given hour **/
-DROP PROCEDURE IF EXISTS `create_hour_stats`;
+DROP PROCEDURE IF EXISTS `create_hour_stats`
+$$
 
 CREATE PROCEDURE `create_hour_stats`(
 	IN `var_timestamp` timestamp
@@ -103,12 +111,15 @@ BLOCK1: BEGIN
 
     END BLOCK2;
 END BLOCK1;
+$$
+
 
 
 /** PROCEDURE `create_now_stats` creates stats for the last hour in all locations
-See the event at the end of the file to run it every hour.
+    See the event at the end of the file to run it every hour.
 **/
-DROP PROCEDURE IF EXISTS `create_now_stats`;
+DROP PROCEDURE IF EXISTS `create_now_stats`
+$$
 
 CREATE PROCEDURE `create_now_stats`()
 LANGUAGE SQL
@@ -117,10 +128,13 @@ MODIFIES SQL DATA
 SQL SECURITY DEFINER
 COMMENT ''
 CALL `create_hour_stats`(UTC_TIMESTAMP());
+$$
+
 
 
 /** PROCEDURE `create_all_data_stats` A VERY EXPENSIVE script that creates stats for all items in the DB. **/
-DROP PROCEDURE IF EXISTS `create_all_data_stats`;
+DROP PROCEDURE IF EXISTS `create_all_data_stats`
+$$
 
 CREATE PROCEDURE `create_all_data_stats`()
 LANGUAGE SQL
@@ -145,12 +159,15 @@ BLOCK1: BEGIN
     END LOOP;
     CLOSE cursor_all;
 END BLOCK1;
+$$
+
 
 
 /**
  * This event creates the statistics every hour
  */
-DROP EVENT IF EXISTS `create_now_stats`;
+DROP EVENT IF EXISTS `create_now_stats`
+$$
 
 CREATE EVENT `create_now_stats`
 ON SCHEDULE
@@ -159,9 +176,12 @@ ON COMPLETION NOT PRESERVE
 ENABLE
 COMMENT ''
 DO CALL `create_now_stats`();
+$$
+
 
 
 /* Start the event processing
-*  This will also need to be set in your sql database configuration
+   This will also need to be set in your sql database configuration
 */
-SET GLOBAL event_scheduler="ON";
+SET GLOBAL event_scheduler="ON"
+$$
