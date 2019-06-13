@@ -231,7 +231,9 @@ INNER JOIN (
             totalCount += incrementalCount;
 
             Thread.Sleep(sleepTime);
-            if (prevTotalCount != totalCount)
+            // Keep expiring when we are expiring large numbers at a time
+            // Stop expiring when at fewer numbers or we will keep expiring forever
+            if (incrementalCount > batchSize / 2)
             {
               changesLeft = true;
             }
