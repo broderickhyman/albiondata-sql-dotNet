@@ -1,9 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28010.2016
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29001.49
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "albiondata-sql-dotNet", "albiondata-sql-dotNet\albiondata-sql-dotNet.csproj", "{B240BAF9-8E31-472D-A64E-88ED391E5624}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "albiondata-sql-dotNet", "albiondata-sql-dotNet\albiondata-sql-dotNet.csproj", "{B240BAF9-8E31-472D-A64E-88ED391E5624}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{1B79CAFB-CDA9-4BED-AC9D-424F72A775C9}"
+	ProjectSection(SolutionItems) = preProject
+		create-historical-procedures.sql = create-historical-procedures.sql
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -178,13 +178,13 @@ namespace albiondata_sql_dotNet
           {
             changesLeft = false;
             incrementalCount = context.Database.ExecuteSqlCommand(@"UPDATE market_orders m
-SET m.deleted_at = UTC_DATE()
+SET m.deleted_at = UTC_TIMESTAMP()
 WHERE m.deleted_at IS NULL
 AND
 (
-m.expires < UTC_DATE()
+m.expires < UTC_TIMESTAMP()
 OR
-m.updated_at < DATE_ADD(UTC_DATE(),INTERVAL -{0} HOUR)
+m.updated_at < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -{0} HOUR)
 )
 LIMIT {1}", MaxAgeHours, batchSize);
             logger.LogInformation($"Soft deleted {incrementalCount} records");
