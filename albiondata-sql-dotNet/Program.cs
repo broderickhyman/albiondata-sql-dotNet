@@ -125,8 +125,6 @@ namespace albiondata_sql_dotNet
           var dbOrder = context.MarketOrders.FirstOrDefault(x => x.AlbionId == marketOrder.AlbionId);
           if (dbOrder != null)
           {
-            //Console.WriteLine($"Updating Market: Price:{marketOrder.UnitPriceSilver} - {marketOrder}");
-            // Update UnitPriceSilver until 2019 so all the remnants of the deduper issue can be resolved
             dbOrder.UnitPriceSilver = marketOrder.UnitPriceSilver;
             dbOrder.UpdatedAt = DateTime.UtcNow;
             dbOrder.Amount = marketOrder.Amount;
@@ -136,7 +134,6 @@ namespace albiondata_sql_dotNet
           }
           else
           {
-            //Console.WriteLine($"Creating Market: Price:{marketOrder.UnitPriceSilver} - {marketOrder}");
             marketOrder.InitialAmount = marketOrder.Amount;
             marketOrder.CreatedAt = DateTime.UtcNow;
             marketOrder.UpdatedAt = DateTime.UtcNow;
