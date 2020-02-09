@@ -320,7 +320,6 @@ INNER JOIN (
           {
             if (dbGold.Price != price)
             {
-              dbGold.UpdatedAt = DateTime.UtcNow;
               dbGold.Price = price;
               context.GoldPrices.Update(dbGold);
             }
@@ -329,8 +328,6 @@ INNER JOIN (
           {
             var goldPrice = new GoldPrice()
             {
-              CreatedAt = DateTime.UtcNow,
-              UpdatedAt = DateTime.UtcNow,
               Price = price,
               Timestamp = timestamp
             };
