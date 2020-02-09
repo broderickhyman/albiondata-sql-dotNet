@@ -18,30 +18,30 @@ namespace albiondata_sql_dotNet
     private static void Main(string[] args) => CommandLineApplication.Execute<Program>(args);
 
     [Option(Description = "NATS Url", ShortName = "n", ShowInHelpText = true)]
-    public static string NatsUrl { get; } = "nats://public:thenewalbiondata@albion-online-data.com:4222";
+    public static string NatsUrl { get; set; } = "nats://public:thenewalbiondata@albion-online-data.com:4222";
 
     [Option(Description = "SQL Connection Url", ShortName = "s", ShowInHelpText = true)]
-    public static string SqlConnectionUrl { get; } = "server=localhost;port=3306;database=albion;user=root;password=";
+    public static string SqlConnectionUrl { get; set; } = "server=localhost;port=3306;database=albion;user=root;password=";
 
     [Option(Description = "Check Every x Minutes for expired orders", ShortName = "e", ShowInHelpText = true)]
     [Range(1, 1440)]
-    public static int ExpireCheckMinutes { get; } = 60;
+    public static int ExpireCheckMinutes { get; set; } = 60;
 
     [Option(Description = "Max age in Hours that orders exist before deletion", ShortName = "a", ShowInHelpText = true)]
     [Range(1, 168)]
-    public static int MaxAgeHours { get; } = 24;
+    public static int MaxAgeHours { get; set; } = 24;
 
     [Option(Description = "Enable Debug Logging", ShortName = "d", LongName = "debug", ShowInHelpText = true)]
-    public static bool Debug { get; }
+    public static bool Debug { get; set; }
 
-    public static ILoggerFactory LoggerFactory { get; } = new LoggerFactory().AddConsole(Debug ? LogLevel.Debug : LogLevel.Information);
-    public static ILogger CreateLogger<T>() => LoggerFactory.CreateLogger<T>();
+    public static ILoggerFactory Logger { get; } = LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(Debug ? LogLevel.Debug : LogLevel.Information));
+    public static ILogger CreateLogger<T>() => Logger.CreateLogger<T>();
 
     private static readonly ManualResetEvent quitEvent = new ManualResetEvent(false);
 
     private static ulong updatedCounter = 0;
 
-    private static Timer expireTimer = new Timer(ExpireOrders, null, Timeout.Infinite, Timeout.Infinite);
+    private static readonly Timer expireTimer = new Timer(ExpireOrders, null, Timeout.Infinite, Timeout.Infinite);
 
     #region Connections
     private static readonly Lazy<IConnection> lazyNats = new Lazy<IConnection>(() =>
@@ -259,14 +259,14 @@ INNER JOIN (
       {
         logger.LogInformation("Processing Gold Data");
         var upload = JsonConvert.DeserializeObject<GoldPriceUpload>(Encoding.UTF8.GetString(message.Data));
-        if (upload.Prices.Length != upload.TimeStamps.Length) throw new Exception("Different list lengths");
+        if (upload.Prices.Length != upload.Timestamps.Length) throw new Exception("Different list lengths");
         using (var context = new ConfiguredContext())
         {
           for (var i = 0; i < upload.Prices.Length; i++)
           {
             var price = upload.Prices[i];
-            var timestamp = new DateTime(upload.TimeStamps[i], DateTimeKind.Utc);
-            var dbGold = context.GoldPrices.FirstOrDefault(x => x.TimeStamp == timestamp);
+            var timestamp = new DateTime(upload.Timestamps[i], DateTimeKind.Utc);
+            var dbGold = context.GoldPrices.FirstOrDefault(x => x.Timestamp == timestamp);
             if (dbGold != null)
             {
               if (dbGold.Price != price)
@@ -283,7 +283,7 @@ INNER JOIN (
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 Price = price,
-                TimeStamp = timestamp
+                Timestamp = timestamp
               };
               context.GoldPrices.Add(goldPrice);
             }
