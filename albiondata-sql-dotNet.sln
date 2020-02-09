@@ -7,7 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "albiondata-sql-dotNet", "al
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{1B79CAFB-CDA9-4BED-AC9D-424F72A775C9}"
 	ProjectSection(SolutionItems) = preProject
-		create-historical-procedures.sql = create-historical-procedures.sql
+		migration.sql = migration.sql
 	EndProjectSection
 EndProject
 Global
