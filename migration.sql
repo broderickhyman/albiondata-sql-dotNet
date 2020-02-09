@@ -13,20 +13,17 @@
 
 
 -- Dumping database structure for albion
-CREATE DATABASE IF NOT EXISTS `albion` /*!40100 DEFAULT CHARACTER SET utf8mb4 */;
+CREATE DATABASE IF NOT EXISTS `albion` /*!40100 DEFAULT CHARACTER SET latin1 */;
 USE `albion`;
 
 -- Dumping structure for table albion.gold_prices
 CREATE TABLE IF NOT EXISTS `gold_prices` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `created_at` datetime(6) NOT NULL,
-  `deleted_at` datetime(6) DEFAULT NULL,
-  `price` int(10) unsigned NOT NULL,
-  `timestamp` datetime(6) NOT NULL,
-  `updated_at` datetime(6) NOT NULL,
+  `timestamp` timestamp NULL DEFAULT NULL,
+  `price` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `IX_gold_prices_timestamp_deleted_at` (`timestamp`,`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  KEY `idx_gold_prices_timestamp` (`timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 -- Data exporting was unselected.
 
@@ -47,64 +44,69 @@ CREATE TABLE IF NOT EXISTS `market_history` (
 
 -- Dumping structure for table albion.market_orders
 CREATE TABLE IF NOT EXISTS `market_orders` (
-  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `item_id` varchar(128) DEFAULT NULL,
-  `location` smallint(5) unsigned NOT NULL,
-  `quality_level` tinyint(3) unsigned NOT NULL,
-  `enchantment_level` tinyint(3) unsigned NOT NULL,
-  `price` bigint(20) unsigned NOT NULL,
-  `amount` int(10) unsigned NOT NULL,
-  `auction_type` varchar(32) DEFAULT NULL,
-  `expires` datetime(6) NOT NULL,
   `albion_id` bigint(20) unsigned NOT NULL,
-  `initial_amount` int(10) unsigned NOT NULL,
-  `created_at` datetime(6) NOT NULL,
-  `updated_at` datetime(6) NOT NULL,
-  `deleted_at` datetime(6) DEFAULT NULL,
+  `item_id` varchar(255) DEFAULT NULL,
+  `quality_level` tinyint(3) unsigned DEFAULT NULL,
+  `enchantment_level` tinyint(3) unsigned DEFAULT NULL,
+  `price` bigint(20) unsigned DEFAULT NULL,
+  `initial_amount` int(11) unsigned DEFAULT NULL,
+  `amount` int(11) unsigned DEFAULT NULL,
+  `auction_type` varchar(255) DEFAULT NULL,
+  `expires` timestamp NULL DEFAULT NULL,
+  `location` smallint(5) unsigned NOT NULL,
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `AlbionId` (`albion_id`),
-  KEY `Deleted` (`deleted_at`),
-  KEY `Expired` (`deleted_at`,`expires`,`updated_at`),
-  KEY `TypeId` (`item_id`,`updated_at`,`deleted_at`),
-  KEY `Main` (`item_id`,`auction_type`,`location`,`updated_at`,`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  UNIQUE KEY `uix_market_orders_albion_id` (`albion_id`),
+  KEY `deleted` (`deleted_at`),
+  KEY `expired` (`deleted_at`,`expires`,`updated_at`),
+  KEY `main` (`item_id`,`location`,`updated_at`,`deleted_at`),
+  KEY `expires` (`expires`),
+  KEY `updated_at` (`updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 -- Data exporting was unselected.
 
 -- Dumping structure for table albion.market_orders_expired
 CREATE TABLE IF NOT EXISTS `market_orders_expired` (
-  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `item_id` varchar(128) DEFAULT NULL,
-  `location` smallint(5) unsigned NOT NULL,
-  `quality_level` tinyint(3) unsigned NOT NULL,
-  `enchantment_level` tinyint(3) unsigned NOT NULL,
-  `price` bigint(20) unsigned NOT NULL,
-  `amount` int(10) unsigned NOT NULL,
-  `auction_type` varchar(32) DEFAULT NULL,
-  `expires` datetime(6) NOT NULL,
   `albion_id` bigint(20) unsigned NOT NULL,
-  `initial_amount` int(10) unsigned NOT NULL,
-  `created_at` datetime(6) NOT NULL,
-  `updated_at` datetime(6) NOT NULL,
-  `deleted_at` datetime(6) DEFAULT NULL,
+  `item_id` varchar(255) DEFAULT NULL,
+  `quality_level` tinyint(3) unsigned DEFAULT NULL,
+  `enchantment_level` tinyint(3) unsigned DEFAULT NULL,
+  `price` bigint(20) unsigned DEFAULT NULL,
+  `initial_amount` int(11) unsigned DEFAULT NULL,
+  `amount` int(11) unsigned DEFAULT NULL,
+  `auction_type` varchar(255) DEFAULT NULL,
+  `expires` timestamp NULL DEFAULT NULL,
+  `location` smallint(5) unsigned NOT NULL,
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `AlbionId` (`albion_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  UNIQUE KEY `uix_market_orders_expired_albion_id` (`albion_id`),
+  KEY `updated_at_expired` (`updated_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC;
 
 -- Data exporting was unselected.
 
 -- Dumping structure for table albion.market_stats
 CREATE TABLE IF NOT EXISTS `market_stats` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `item_id` varchar(128) NOT NULL,
+  `item_id` varchar(255) NOT NULL,
   `location` smallint(5) unsigned NOT NULL,
-  `price_avg` decimal(65,30) NOT NULL,
-  `price_max` bigint(20) unsigned NOT NULL,
-  `price_min` bigint(20) unsigned NOT NULL,
-  `timestamp` datetime(6) NOT NULL,
+  `price_min` bigint(20) unsigned DEFAULT NULL,
+  `price_max` bigint(20) unsigned DEFAULT NULL,
+  `price_avg` decimal(10,0) DEFAULT NULL,
+  `timestamp` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `AK_market_stats_item_id_location_timestamp` (`item_id`,`location`,`timestamp`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  UNIQUE KEY `item_id_location_timestamp_unique` (`item_id`,`location`,`timestamp`) USING BTREE,
+  KEY `item_id` (`item_id`),
+  KEY `location` (`location`),
+  KEY `timestamp` (`timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 -- Data exporting was unselected.
 
