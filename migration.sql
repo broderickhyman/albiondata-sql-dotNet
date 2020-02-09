@@ -35,10 +35,10 @@ CREATE TABLE IF NOT EXISTS `market_history` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `item_amount` bigint(20) unsigned NOT NULL,
   `silver_amount` bigint(20) unsigned NOT NULL,
-  `timestamp` bigint(20) unsigned NOT NULL,
   `item_id` varchar(128) NOT NULL,
   `location` smallint(5) unsigned NOT NULL,
   `quality` tinyint(3) unsigned NOT NULL,
+  `timestamp` datetime(6) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `Main` (`item_id`,`quality`,`location`,`timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

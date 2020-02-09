@@ -39,7 +39,8 @@ namespace albiondata_sql_dotNet
 
     private static readonly ManualResetEvent quitEvent = new ManualResetEvent(false);
 
-    private static ulong updatedCounter = 0;
+    private static ulong updatedOrderCounter = 0;
+    private static ulong updatedHistoryCounter = 0;
 
     private static readonly Timer expireTimer = new Timer(ExpireOrders, null, Timeout.Infinite, Timeout.Infinite);
 
@@ -60,6 +61,7 @@ namespace albiondata_sql_dotNet
     #endregion
     #region Subjects
     private const string marketOrdersDeduped = "marketorders.deduped";
+    private const string marketHistoriesDeduped = "markethistories.deduped";
     private const string goldDataDeduped = "goldprices.deduped";
     #endregion
 
@@ -92,13 +94,17 @@ namespace albiondata_sql_dotNet
       logger.LogInformation($"NATS Connected, ID: {NatsConnection.ConnectedId}");
 
       var incomingMarketOrders = NatsConnection.SubscribeAsync(marketOrdersDeduped);
+      var incomingMarketHistories = NatsConnection.SubscribeAsync(marketHistoriesDeduped);
       var incomingGoldData = NatsConnection.SubscribeAsync(goldDataDeduped);
 
       incomingMarketOrders.MessageHandler += HandleMarketOrder;
+      incomingMarketHistories.MessageHandler += HandleMarketHistory;
       incomingGoldData.MessageHandler += HandleGoldData;
 
       incomingMarketOrders.Start();
       logger.LogInformation("Listening for Market Order Data");
+      incomingMarketHistories.Start();
+      logger.LogInformation("Listening for Market History Data");
       incomingGoldData.Start();
       logger.LogInformation("Listening for Gold Data");
 
@@ -117,40 +123,86 @@ namespace albiondata_sql_dotNet
       var message = args.Message;
       try
       {
-        using (var context = new ConfiguredContext())
+        using var context = new ConfiguredContext();
+        var marketOrder = JsonConvert.DeserializeObject<MarketOrderDB>(Encoding.UTF8.GetString(message.Data));
+        marketOrder.AlbionId = marketOrder.Id;
+        marketOrder.Id = 0;
+        var dbOrder = context.MarketOrders.FirstOrDefault(x => x.AlbionId == marketOrder.AlbionId);
+        if (dbOrder != null)
         {
-          var marketOrder = JsonConvert.DeserializeObject<MarketOrderDB>(Encoding.UTF8.GetString(message.Data));
-          marketOrder.AlbionId = marketOrder.Id;
-          marketOrder.Id = 0;
-          var dbOrder = context.MarketOrders.FirstOrDefault(x => x.AlbionId == marketOrder.AlbionId);
-          if (dbOrder != null)
-          {
-            dbOrder.UnitPriceSilver = marketOrder.UnitPriceSilver;
-            dbOrder.UpdatedAt = DateTime.UtcNow;
-            dbOrder.Amount = marketOrder.Amount;
-            dbOrder.LocationId = marketOrder.LocationId;
-            dbOrder.DeletedAt = null;
-            context.MarketOrders.Update(dbOrder);
-          }
-          else
-          {
-            marketOrder.InitialAmount = marketOrder.Amount;
-            marketOrder.CreatedAt = DateTime.UtcNow;
-            marketOrder.UpdatedAt = DateTime.UtcNow;
-            if (marketOrder.Expires > DateTime.UtcNow.AddYears(1))
-            {
-              marketOrder.Expires = DateTime.UtcNow.AddDays(7);
-            }
-            context.MarketOrders.Add(marketOrder);
-          }
-          context.SaveChanges();
-          updatedCounter++;
-          if (updatedCounter % 100 == 0) logger.LogInformation($"Updated/Created {updatedCounter} Market Orders");
+          dbOrder.UnitPriceSilver = marketOrder.UnitPriceSilver;
+          dbOrder.UpdatedAt = DateTime.UtcNow;
+          dbOrder.Amount = marketOrder.Amount;
+          dbOrder.LocationId = marketOrder.LocationId;
+          dbOrder.DeletedAt = null;
+          context.MarketOrders.Update(dbOrder);
         }
+        else
+        {
+          marketOrder.InitialAmount = marketOrder.Amount;
+          marketOrder.CreatedAt = DateTime.UtcNow;
+          marketOrder.UpdatedAt = DateTime.UtcNow;
+          if (marketOrder.Expires > DateTime.UtcNow.AddYears(1))
+          {
+            marketOrder.Expires = DateTime.UtcNow.AddDays(7);
+          }
+          context.MarketOrders.Add(marketOrder);
+        }
+        context.SaveChanges();
+        updatedOrderCounter++;
+        if (updatedOrderCounter % 100 == 0) logger.LogInformation($"Updated/Created {updatedOrderCounter} Market Orders");
       }
       catch (Exception ex)
       {
         logger.LogError(ex, "Error handling market order");
+      }
+    }
+
+    private static void HandleMarketHistory(object sender, MsgHandlerEventArgs args)
+    {
+      var logger = CreateLogger<Program>();
+      var message = args.Message;
+      try
+      {
+        using var context = new ConfiguredContext();
+        var upload = JsonConvert.DeserializeObject<MarketHistoriesUpload>(Encoding.UTF8.GetString(message.Data));
+
+        foreach (var history in upload.MarketHistories)
+        {
+          var historyDate = new DateTime((long)history.Timestamp);
+          var dbHistory = context.MarketHistories.FirstOrDefault(x =>
+          x.ItemTypeId == upload.AlbionIdString
+          && x.Location == upload.LocationId
+          && x.QualityLevel == upload.QualityLevel
+          && x.Timestamp == historyDate);
+
+          if (dbHistory == null)
+          {
+            dbHistory = new MarketHistoryDB
+            {
+              ItemTypeId = upload.AlbionIdString,
+              Location = upload.LocationId,
+              QualityLevel = upload.QualityLevel,
+              ItemAmount = history.ItemAmount,
+              SilverAmount = history.SilverAmount,
+              Timestamp = historyDate
+            };
+            context.MarketHistories.Add(dbHistory);
+          }
+          else
+          {
+            dbHistory.ItemAmount = history.ItemAmount;
+            dbHistory.SilverAmount = history.SilverAmount;
+            context.MarketHistories.Update(dbHistory);
+          }
+          updatedHistoryCounter++;
+          if (updatedHistoryCounter % 100 == 0) logger.LogInformation($"Updated/Created {updatedHistoryCounter} Market Histories");
+        }
+        context.SaveChanges();
+      }
+      catch (Exception ex)
+      {
+        logger.LogError(ex, "Error handling market history");
       }
     }
 
@@ -163,32 +215,31 @@ namespace albiondata_sql_dotNet
 
         var logger = CreateLogger<Program>();
         logger.LogInformation("Checking for expired orders");
-        using (var context = new ConfiguredContext())
+        using var context = new ConfiguredContext();
+        const int batchSize = 50000;
+        var sleepTime = TimeSpan.FromSeconds(10);
+        var incrementalCount = 0;
+        var totalCount = 0;
+        var prevTotalCount = totalCount;
+        var changesLeft = true;
+        while (changesLeft)
         {
-          const int batchSize = 50000;
-          var sleepTime = TimeSpan.FromSeconds(10);
-          var incrementalCount = 0;
-          var totalCount = 0;
-          var prevTotalCount = totalCount;
-          var changesLeft = true;
-          while (changesLeft)
-          {
-            changesLeft = false;
-            incrementalCount = context.Database.ExecuteSqlCommand(@"UPDATE market_orders m
+          changesLeft = false;
+          incrementalCount = context.Database.ExecuteSqlInterpolated(@$"UPDATE market_orders m
 SET m.deleted_at = UTC_TIMESTAMP()
 WHERE m.deleted_at IS NULL
 AND
 (
 m.expires < UTC_TIMESTAMP()
 OR
-m.updated_at < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -{0} HOUR)
+m.updated_at < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -{MaxAgeHours} HOUR)
 )
-LIMIT {1}", MaxAgeHours, batchSize);
-            logger.LogInformation($"Soft deleted {incrementalCount} records");
-            totalCount += incrementalCount;
+LIMIT {batchSize}");
+          logger.LogInformation($"Soft deleted {incrementalCount} records");
+          totalCount += incrementalCount;
 
-            Thread.Sleep(sleepTime);
-            incrementalCount = context.Database.ExecuteSqlCommand(@"INSERT INTO market_orders_expired
+          Thread.Sleep(sleepTime);
+          incrementalCount = context.Database.ExecuteSqlInterpolated(@$"INSERT INTO market_orders_expired
 (`item_id`, `location`, `quality_level`, `enchantment_level`, `price`, `amount`, `auction_type`, `expires`, `albion_id`, `initial_amount`, `created_at`, `updated_at`, `deleted_at`)
 SELECT m.`item_id`, m.`location`, m.`quality_level`, m.`enchantment_level`, m.`price`, m.`amount`, m.`auction_type`, m.`expires`, m.`albion_id`, m.`initial_amount`, m.`created_at`, m.`updated_at`, m.`deleted_at`
 FROM (
@@ -205,15 +256,15 @@ FROM (
 		)
 	)
 	ORDER BY o.deleted_at desc
-  LIMIT {0}
+  LIMIT {batchSize}
 ) AS m
 ON DUPLICATE KEY UPDATE amount=m.amount,location=m.location,updated_at=m.updated_at,deleted_at=m.deleted_at
-;", batchSize);
-            logger.LogInformation($"Inserted/Updated {incrementalCount} records in the expired table");
-            totalCount += incrementalCount;
+;");
+          logger.LogInformation($"Inserted/Updated {incrementalCount} records in the expired table");
+          totalCount += incrementalCount;
 
-            Thread.Sleep(sleepTime);
-            incrementalCount = context.Database.ExecuteSqlCommand(@"DELETE mo
+          Thread.Sleep(sleepTime);
+          incrementalCount = context.Database.ExecuteSqlInterpolated(@$"DELETE mo
 FROM market_orders mo
 INNER JOIN (
   SELECT
@@ -221,29 +272,28 @@ INNER JOIN (
   FROM market_orders m
   INNER JOIN market_orders_expired e ON e.albion_id = m.albion_id
   WHERE m.deleted_at IS NOT NULL
-  LIMIT {0}
+  LIMIT {batchSize}
 ) del ON del.albion_id = mo.albion_id
-;", batchSize);
-            logger.LogInformation($"Deleted {incrementalCount} records from the main table");
-            totalCount += incrementalCount;
+;");
+          logger.LogInformation($"Deleted {incrementalCount} records from the main table");
+          totalCount += incrementalCount;
 
-            Thread.Sleep(sleepTime);
-            // Keep expiring when we are expiring large numbers at a time
-            // Stop expiring when at fewer numbers or we will keep expiring forever
-            if (incrementalCount > batchSize / 2)
-            {
-              changesLeft = true;
-            }
-            // We have been deleting for too long, kill this thread
-            if ((DateTime.Now - start).TotalMinutes > ExpireCheckMinutes * 0.75)
-            {
-              logger.LogInformation("Killing long running thread");
-              changesLeft = false;
-            }
-            prevTotalCount = totalCount;
+          Thread.Sleep(sleepTime);
+          // Keep expiring when we are expiring large numbers at a time
+          // Stop expiring when at fewer numbers or we will keep expiring forever
+          if (incrementalCount > batchSize / 2)
+          {
+            changesLeft = true;
           }
-          logger.LogInformation($"{totalCount} total updates");
+          // We have been deleting for too long, kill this thread
+          if ((DateTime.Now - start).TotalMinutes > ExpireCheckMinutes * 0.75)
+          {
+            logger.LogInformation("Killing long running thread");
+            changesLeft = false;
+          }
+          prevTotalCount = totalCount;
         }
+        logger.LogInformation($"{totalCount} total updates");
       }
       catch (Exception ex)
       {
@@ -260,36 +310,34 @@ INNER JOIN (
         logger.LogInformation("Processing Gold Data");
         var upload = JsonConvert.DeserializeObject<GoldPriceUpload>(Encoding.UTF8.GetString(message.Data));
         if (upload.Prices.Length != upload.Timestamps.Length) throw new Exception("Different list lengths");
-        using (var context = new ConfiguredContext())
+        using var context = new ConfiguredContext();
+        for (var i = 0; i < upload.Prices.Length; i++)
         {
-          for (var i = 0; i < upload.Prices.Length; i++)
+          var price = upload.Prices[i];
+          var timestamp = new DateTime(upload.Timestamps[i], DateTimeKind.Utc);
+          var dbGold = context.GoldPrices.FirstOrDefault(x => x.Timestamp == timestamp);
+          if (dbGold != null)
           {
-            var price = upload.Prices[i];
-            var timestamp = new DateTime(upload.Timestamps[i], DateTimeKind.Utc);
-            var dbGold = context.GoldPrices.FirstOrDefault(x => x.Timestamp == timestamp);
-            if (dbGold != null)
+            if (dbGold.Price != price)
             {
-              if (dbGold.Price != price)
-              {
-                dbGold.UpdatedAt = DateTime.UtcNow;
-                dbGold.Price = price;
-                context.GoldPrices.Update(dbGold);
-              }
-            }
-            else
-            {
-              var goldPrice = new GoldPrice()
-              {
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                Price = price,
-                Timestamp = timestamp
-              };
-              context.GoldPrices.Add(goldPrice);
+              dbGold.UpdatedAt = DateTime.UtcNow;
+              dbGold.Price = price;
+              context.GoldPrices.Update(dbGold);
             }
           }
-          context.SaveChanges();
+          else
+          {
+            var goldPrice = new GoldPrice()
+            {
+              CreatedAt = DateTime.UtcNow,
+              UpdatedAt = DateTime.UtcNow,
+              Price = price,
+              Timestamp = timestamp
+            };
+            context.GoldPrices.Add(goldPrice);
+          }
         }
+        context.SaveChanges();
       }
       catch (Exception ex)
       {
