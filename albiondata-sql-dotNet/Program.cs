@@ -179,7 +179,8 @@ namespace albiondata_sql_dotNet
           x.ItemTypeId == upload.AlbionIdString
           && x.Location == upload.LocationId
           && x.QualityLevel == upload.QualityLevel
-          && x.Timestamp == historyDate);
+          && x.Timestamp == historyDate
+          && x.AggregationType == aggregationType);
 
           if (dbHistory == null)
           {
@@ -199,7 +200,6 @@ namespace albiondata_sql_dotNet
           {
             dbHistory.ItemAmount = history.ItemAmount;
             dbHistory.SilverAmount = history.SilverAmount;
-            dbHistory.AggregationType = aggregationType;
             context.MarketHistories.Update(dbHistory);
           }
           updatedHistoryCounter++;
