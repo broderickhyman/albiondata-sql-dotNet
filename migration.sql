@@ -36,8 +36,9 @@ CREATE TABLE IF NOT EXISTS `market_history` (
   `location` smallint(5) unsigned NOT NULL,
   `quality` tinyint(3) unsigned NOT NULL,
   `timestamp` datetime(6) NOT NULL,
+  `aggregation` tinyint(4) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `Main` (`item_id`,`quality`,`location`,`timestamp`)
+  UNIQUE KEY `Main` (`item_id`,`quality`,`location`,`timestamp`,`aggregation`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Data exporting was unselected.

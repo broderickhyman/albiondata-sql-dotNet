@@ -166,6 +166,11 @@ namespace albiondata_sql_dotNet
       {
         using var context = new ConfiguredContext();
         var upload = JsonConvert.DeserializeObject<MarketHistoriesUpload>(Encoding.UTF8.GetString(message.Data));
+        var aggregationType = TimeAggregation.QuarterDay;
+        if (upload.Timescale == Timescale.Day)
+        {
+          aggregationType = TimeAggregation.Hourly;
+        }
 
         foreach (var history in upload.MarketHistories)
         {
@@ -180,6 +185,7 @@ namespace albiondata_sql_dotNet
           {
             dbHistory = new MarketHistoryDB
             {
+              AggregationType = aggregationType,
               ItemTypeId = upload.AlbionIdString,
               Location = upload.LocationId,
               QualityLevel = upload.QualityLevel,
@@ -193,6 +199,7 @@ namespace albiondata_sql_dotNet
           {
             dbHistory.ItemAmount = history.ItemAmount;
             dbHistory.SilverAmount = history.SilverAmount;
+            dbHistory.AggregationType = aggregationType;
             context.MarketHistories.Update(dbHistory);
           }
           updatedHistoryCounter++;
