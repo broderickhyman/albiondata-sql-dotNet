@@ -172,7 +172,9 @@ namespace albiondata_sql_dotNet
           aggregationType = TimeAggregation.Hourly;
         }
 
-        foreach (var history in upload.MarketHistories)
+        // Do not use the last history timestamp because it is a partial period
+        // It is not guaranteed to be updated so it can appear that the count in the period was way lower
+        foreach (var history in upload.MarketHistories.OrderBy(x => x.Timestamp).SkipLast(1))
         {
           var historyDate = new DateTime((long)history.Timestamp);
           var dbHistory = context.MarketHistories.FirstOrDefault(x =>
