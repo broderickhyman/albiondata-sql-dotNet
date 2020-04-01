@@ -1,6 +1,6 @@
 -- --------------------------------------------------------
--- Host:                         127.0.0.1
--- Server version:               10.1.44-MariaDB-0ubuntu0.18.04.1 - Ubuntu 18.04
+-- Host:                         localhost
+-- Server version:               10.3.22-MariaDB-1:10.3.22+maria~bionic - mariadb.org binary distribution
 -- Server OS:                    debian-linux-gnu
 -- HeidiSQL Version:             10.3.0.5771
 -- --------------------------------------------------------
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `market_history` (
   `location` smallint(5) unsigned NOT NULL,
   `quality` tinyint(3) unsigned NOT NULL,
   `timestamp` datetime(6) NOT NULL,
-  `aggregation` tinyint(4) NOT NULL,
+  `aggregation` tinyint(4) NOT NULL DEFAULT 6,
   PRIMARY KEY (`id`),
   UNIQUE KEY `Main` (`item_id`,`quality`,`location`,`timestamp`,`aggregation`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
