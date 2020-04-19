@@ -234,6 +234,7 @@ namespace albiondata_sql_dotNet
         while (changesLeft)
         {
           changesLeft = false;
+          // Delete old market orders
           incrementalCount = context.Database.ExecuteSqlInterpolated(@$"DELETE m
 FROM market_orders m
 WHERE m.deleted_at IS NULL
@@ -243,10 +244,19 @@ m.expires < UTC_TIMESTAMP()
 OR
 m.updated_at < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -{MaxAgeHours} HOUR)
 )");
-          logger.LogInformation($"Deleted {incrementalCount} records");
+          logger.LogInformation($"Deleted {incrementalCount} order records");
           totalCount += incrementalCount;
-
           Thread.Sleep(sleepTime);
+
+          // Delete old hourly history records
+          incrementalCount = context.Database.ExecuteSqlInterpolated(@$"DELETE m
+FROM market_history m
+WHERE m.aggregation = 1
+AND m.timestamp < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -7 DAY)");
+          logger.LogInformation($"Deleted {incrementalCount} history records");
+          totalCount += incrementalCount;
+          Thread.Sleep(sleepTime);
+
           // Keep expiring when we are expiring large numbers at a time
           // Stop expiring when at fewer numbers or we will keep expiring forever
           if (incrementalCount > batchSize / 2)
