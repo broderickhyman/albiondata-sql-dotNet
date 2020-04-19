@@ -234,57 +234,16 @@ namespace albiondata_sql_dotNet
         while (changesLeft)
         {
           changesLeft = false;
-          incrementalCount = context.Database.ExecuteSqlInterpolated(@$"UPDATE market_orders m
-SET m.deleted_at = UTC_TIMESTAMP()
+          incrementalCount = context.Database.ExecuteSqlInterpolated(@$"DELETE m
+FROM market_orders m
 WHERE m.deleted_at IS NULL
 AND
 (
 m.expires < UTC_TIMESTAMP()
 OR
 m.updated_at < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -{MaxAgeHours} HOUR)
-)
-LIMIT {batchSize}");
-          logger.LogInformation($"Soft deleted {incrementalCount} records");
-          totalCount += incrementalCount;
-
-          Thread.Sleep(sleepTime);
-          incrementalCount = context.Database.ExecuteSqlInterpolated(@$"INSERT INTO market_orders_expired
-(`item_id`, `location`, `quality_level`, `enchantment_level`, `price`, `amount`, `auction_type`, `expires`, `albion_id`, `initial_amount`, `created_at`, `updated_at`, `deleted_at`)
-SELECT m.`item_id`, m.`location`, m.`quality_level`, m.`enchantment_level`, m.`price`, m.`amount`, m.`auction_type`, m.`expires`, m.`albion_id`, m.`initial_amount`, m.`created_at`, m.`updated_at`, m.`deleted_at`
-FROM (
-	SELECT o.*
-	from market_orders o
-	LEFT JOIN market_orders_expired e ON e.albion_id = o.albion_id
-	WHERE o.deleted_at IS NOT NULL
-	AND (
-		e.id IS NULL -- Doesn't exist in expired
-		OR	(
-			e.id IS NOT NULL -- Exists in expired
-			AND
-			e.deleted_at <> o.deleted_at -- It was updated since last insertion
-		)
-	)
-	ORDER BY o.deleted_at desc
-  LIMIT {batchSize}
-) AS m
-ON DUPLICATE KEY UPDATE amount=m.amount,location=m.location,updated_at=m.updated_at,deleted_at=m.deleted_at
-;");
-          logger.LogInformation($"Inserted/Updated {incrementalCount} records in the expired table");
-          totalCount += incrementalCount;
-
-          Thread.Sleep(sleepTime);
-          incrementalCount = context.Database.ExecuteSqlInterpolated(@$"DELETE mo
-FROM market_orders mo
-INNER JOIN (
-  SELECT
-  m.albion_id
-  FROM market_orders m
-  INNER JOIN market_orders_expired e ON e.albion_id = m.albion_id
-  WHERE m.deleted_at IS NOT NULL
-  LIMIT {batchSize}
-) del ON del.albion_id = mo.albion_id
-;");
-          logger.LogInformation($"Deleted {incrementalCount} records from the main table");
+)");
+          logger.LogInformation($"Deleted {incrementalCount} records");
           totalCount += incrementalCount;
 
           Thread.Sleep(sleepTime);
