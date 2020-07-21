@@ -77,7 +77,9 @@ namespace albiondata_sql_dotNet
 
       var logger = CreateLogger<Program>();
       if (Debug)
+      {
         logger.LogInformation("Debugging enabled");
+      }
 
       using (var context = new ConfiguredContext())
       {
@@ -305,7 +307,11 @@ AND m.timestamp < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -7 DAY)");
       try
       {
         var upload = JsonConvert.DeserializeObject<GoldPriceUpload>(Encoding.UTF8.GetString(message.Data));
-        if (upload.Prices.Length != upload.Timestamps.Length) throw new Exception("Different list lengths");
+        if (upload.Prices.Length != upload.Timestamps.Length)
+        {
+          throw new Exception("Different list lengths");
+        }
+
         using var context = new ConfiguredContext();
         for (var i = 0; i < upload.Prices.Length; i++)
         {

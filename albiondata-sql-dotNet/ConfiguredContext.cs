@@ -13,6 +13,13 @@ namespace albiondata_sql_dotNet
     {
       // TODO: Add other database providers here
       optionsBuilder.UseMySql(Program.SqlConnectionUrl);
+#if DEBUG
+      if (Program.Debug)
+      {
+        // This turns on the SQL query output to the console
+        optionsBuilder.UseLoggerFactory(Program.Logger);
+      }
+#endif
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
