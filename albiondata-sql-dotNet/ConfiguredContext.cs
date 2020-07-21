@@ -1,5 +1,6 @@
 ﻿using AlbionData.Models;
 using Microsoft.EntityFrameworkCore;
+using System;
 
 namespace albiondata_sql_dotNet
 {
@@ -12,12 +13,16 @@ namespace albiondata_sql_dotNet
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
       // TODO: Add other database providers here
-      optionsBuilder.UseMySql(Program.SqlConnectionUrl);
+
+      // Use a large timeout since we have deletes that must do table scans
+      optionsBuilder.UseMySql(Program.SqlConnectionUrl,
+        opts => opts.CommandTimeout((int)TimeSpan.FromMinutes(1).TotalSeconds));
 #if DEBUG
       if (Program.Debug)
       {
         // This turns on the SQL query output to the console
         optionsBuilder.UseLoggerFactory(Program.Logger);
+        optionsBuilder.EnableSensitiveDataLogging(true);
       }
 #endif
     }

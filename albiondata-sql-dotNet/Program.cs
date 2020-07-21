@@ -194,17 +194,20 @@ namespace albiondata_sql_dotNet
 
         // Do not use the last history timestamp because it is a partial period
         // It is not guaranteed to be updated so it can appear that the count in the period was way lower
-        var marketHistories = upload.MarketHistories.OrderBy(x => x.Timestamp).SkipLast(1);
-        foreach (var history in marketHistories)
-        {
-          var historyDate = new DateTime((long)history.Timestamp);
-          var dbHistory = context.MarketHistories.FirstOrDefault(x =>
-          x.ItemTypeId == upload.AlbionIdString
-          && x.Location == upload.LocationId
-          && x.QualityLevel == upload.QualityLevel
-          && x.Timestamp == historyDate
-          && x.AggregationType == aggregationType);
+        var marketHistoryUpdates = upload.MarketHistories.OrderBy(x => x.Timestamp).SkipLast(1);
 
+        var dbHistories = context.MarketHistories.Where(x =>
+           x.ItemTypeId == upload.AlbionIdString
+        && x.Location == upload.LocationId
+        && x.QualityLevel == upload.QualityLevel
+        && marketHistoryUpdates.Select(x => new DateTime((long)x.Timestamp)).Contains(x.Timestamp)
+        && x.AggregationType == aggregationType)
+          .ToDictionary(x => x.Timestamp);
+
+        foreach (var marketHistoryUpdate in marketHistoryUpdates)
+        {
+          var historyDate = new DateTime((long)marketHistoryUpdate.Timestamp);
+          dbHistories.TryGetValue(historyDate, out var dbHistory);
           if (dbHistory == null)
           {
             dbHistory = new MarketHistoryDB
@@ -213,22 +216,22 @@ namespace albiondata_sql_dotNet
               ItemTypeId = upload.AlbionIdString,
               Location = upload.LocationId,
               QualityLevel = upload.QualityLevel,
-              ItemAmount = history.ItemAmount,
-              SilverAmount = history.SilverAmount,
+              ItemAmount = marketHistoryUpdate.ItemAmount,
+              SilverAmount = marketHistoryUpdate.SilverAmount,
               Timestamp = historyDate
             };
             context.MarketHistories.Add(dbHistory);
           }
           else
           {
-            dbHistory.ItemAmount = history.ItemAmount;
-            dbHistory.SilverAmount = history.SilverAmount;
+            dbHistory.ItemAmount = marketHistoryUpdate.ItemAmount;
+            dbHistory.SilverAmount = marketHistoryUpdate.SilverAmount;
             context.MarketHistories.Update(dbHistory);
           }
           updatedHistoryCounter++;
         }
         context.SaveChanges();
-        logger.LogInformation(GetLogMessage(marketHistories.Count(), "Market Histories", updatedHistoryCounter));
+        logger.LogInformation(GetLogMessage(marketHistoryUpdates.Count(), "Market Histories", updatedHistoryCounter));
       }
       catch (Exception ex)
       {
@@ -246,51 +249,62 @@ namespace albiondata_sql_dotNet
         var logger = CreateLogger<Program>();
         logger.LogInformation("Checking for expired orders");
         using var context = new ConfiguredContext();
-        const int batchSize = 50000;
+        const int batchSize = 1000;
         var sleepTime = TimeSpan.FromSeconds(10);
-        var incrementalCount = 0;
+
+        // Using int.MaxValue allows us to use the rows affected from the previous delete to determine if we should keep deleting
+        // We shouldn't keep deleting if the last delete did not delete a full batch
+        var lastDeletedOrderCount = int.MaxValue;
+        var lastDeletedHistoryCount = int.MaxValue;
         var totalCount = 0;
-        var prevTotalCount = totalCount;
         var changesLeft = true;
         while (changesLeft)
         {
           changesLeft = false;
           // Delete old market orders
-          incrementalCount = context.Database.ExecuteSqlInterpolated(@$"DELETE m
-FROM market_orders m
-WHERE m.deleted_at IS NULL
+          if (lastDeletedOrderCount >= batchSize)
+          {
+            lastDeletedOrderCount = context.Database.ExecuteSqlRaw(@$"DELETE
+FROM market_orders
+WHERE deleted_at IS NULL
 AND
 (
-m.expires < UTC_TIMESTAMP()
+expires < UTC_TIMESTAMP()
 OR
-m.updated_at < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -{MaxAgeHours} HOUR)
-)");
-          logger.LogInformation($"Deleted {incrementalCount} order records");
-          totalCount += incrementalCount;
-          Thread.Sleep(sleepTime);
+updated_at < DATE_ADD(UTC_TIMESTAMP(), INTERVAL -{MaxAgeHours} HOUR)
+)
+LIMIT {batchSize}");
+            logger.LogInformation($"Deleted {lastDeletedOrderCount} Market Orders");
+            totalCount += lastDeletedOrderCount;
+            Thread.Sleep(sleepTime);
+          }
 
           // Delete old hourly history records
-          incrementalCount = context.Database.ExecuteSqlRaw(@"DELETE m
-FROM market_history m
-WHERE m.aggregation = 1
-AND m.timestamp < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -7 DAY)");
-          logger.LogInformation($"Deleted {incrementalCount} history records");
-          totalCount += incrementalCount;
-          Thread.Sleep(sleepTime);
+          if (lastDeletedHistoryCount >= batchSize)
+          {
+            lastDeletedHistoryCount = context.Database.ExecuteSqlRaw(@$"DELETE
+FROM market_history
+WHERE aggregation = 1
+AND timestamp < DATE_ADD(UTC_TIMESTAMP(), INTERVAL -7 DAY)
+LIMIT {batchSize}");
+            logger.LogInformation($"Deleted {lastDeletedHistoryCount} Market Histories");
+            totalCount += lastDeletedHistoryCount;
+            Thread.Sleep(sleepTime);
+          }
 
           // Keep expiring when we are expiring large numbers at a time
-          // Stop expiring when at fewer numbers or we will keep expiring forever
-          if (incrementalCount > batchSize / 2)
+          // Stop expiring when at less than a full batch
+          if (lastDeletedOrderCount + lastDeletedHistoryCount >= batchSize)
           {
             changesLeft = true;
           }
+
           // We have been deleting for too long, kill this thread
           if ((DateTime.Now - start).TotalMinutes > ExpireCheckMinutes * 0.75)
           {
             logger.LogWarning("Killing long running expire thread");
             changesLeft = false;
           }
-          prevTotalCount = totalCount;
         }
         logger.LogInformation($"Total Order/History Expirations: {totalCount}");
       }
