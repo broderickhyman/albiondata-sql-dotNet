@@ -44,7 +44,7 @@ namespace albiondata_sql_dotNet
     private static ulong updatedHistoryCounter;
     private static ulong updatedGoldCounter;
 
-    private static readonly Timer expireTimer = new Timer(ExpireOrders, null, Timeout.Infinite, Timeout.Infinite);
+    private static readonly Timer expirationTimer = new Timer(ExpirationTask, null, Timeout.Infinite, Timeout.Infinite);
 
     #region Connections
     private static readonly Lazy<IConnection> lazyNats = new Lazy<IConnection>(() =>
@@ -115,7 +115,7 @@ namespace albiondata_sql_dotNet
       logger.LogInformation($"Checking Every {ExpireCheckMinutes} Minutes for expired orders.");
       logger.LogInformation($"Deleting orders after {MaxAgeHours} hours");
 
-      expireTimer.Change(TimeSpan.Zero, TimeSpan.FromMinutes(ExpireCheckMinutes));
+      expirationTimer.Change(TimeSpan.Zero, TimeSpan.FromMinutes(ExpireCheckMinutes));
 
       quitEvent.WaitOne();
       NatsConnection.Close();
@@ -239,7 +239,7 @@ namespace albiondata_sql_dotNet
       }
     }
 
-    private static void ExpireOrders(object state)
+    private static void ExpirationTask(object state)
     {
       try
       {
@@ -247,7 +247,7 @@ namespace albiondata_sql_dotNet
         File.AppendAllText("last-run.txt", start.ToString("F") + Environment.NewLine);
 
         var logger = CreateLogger<Program>();
-        logger.LogInformation("Checking for expired orders");
+        logger.LogInformation("Expiration Task Starting");
         using var context = new ConfiguredContext();
         const int batchSize = 1000;
         var sleepTime = TimeSpan.FromSeconds(10);
@@ -274,8 +274,8 @@ OR
 updated_at < DATE_ADD(UTC_TIMESTAMP(), INTERVAL -{MaxAgeHours} HOUR)
 )
 LIMIT {batchSize}");
-            logger.LogInformation($"Deleted {lastDeletedOrderCount} Market Orders");
             totalCount += lastDeletedOrderCount;
+            logger.LogInformation($"Expired {lastDeletedOrderCount} Market Orders. Total Order/History Expiration: {totalCount}");
             Thread.Sleep(sleepTime);
           }
 
@@ -287,8 +287,8 @@ FROM market_history
 WHERE aggregation = 1
 AND timestamp < DATE_ADD(UTC_TIMESTAMP(), INTERVAL -7 DAY)
 LIMIT {batchSize}");
-            logger.LogInformation($"Deleted {lastDeletedHistoryCount} Market Histories");
             totalCount += lastDeletedHistoryCount;
+            logger.LogInformation($"Expired {lastDeletedHistoryCount} Market Histories. Total Order/History Expiration: {totalCount}");
             Thread.Sleep(sleepTime);
           }
 
@@ -302,11 +302,11 @@ LIMIT {batchSize}");
           // We have been deleting for too long, kill this thread
           if ((DateTime.Now - start).TotalMinutes > ExpireCheckMinutes * 0.75)
           {
-            logger.LogWarning("Killing long running expire thread");
+            logger.LogWarning("Killing Long Running Expiration Task");
             changesLeft = false;
           }
         }
-        logger.LogInformation($"Total Order/History Expirations: {totalCount}");
+        logger.LogInformation($"Total Order/History Expirations: {totalCount} Time Spent: {DateTime.Now - start}");
       }
       catch (Exception ex)
       {
