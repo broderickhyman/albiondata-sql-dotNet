@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using NATS.Client;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Linq;
@@ -39,8 +40,9 @@ namespace albiondata_sql_dotNet
 
     private static readonly ManualResetEvent quitEvent = new ManualResetEvent(false);
 
-    private static ulong updatedOrderCounter = 0;
-    private static ulong updatedHistoryCounter = 0;
+    private static ulong updatedOrderCounter;
+    private static ulong updatedHistoryCounter;
+    private static ulong updatedGoldCounter;
 
     private static readonly Timer expireTimer = new Timer(ExpireOrders, null, Timeout.Infinite, Timeout.Infinite);
 
@@ -60,7 +62,7 @@ namespace albiondata_sql_dotNet
     }
     #endregion
     #region Subjects
-    private const string marketOrdersDeduped = "marketorders.deduped";
+    private const string marketOrdersDedupedBulk = "marketorders.deduped.bulk";
     private const string marketHistoriesDeduped = "markethistories.deduped";
     private const string goldDataDeduped = "goldprices.deduped";
     #endregion
@@ -93,11 +95,11 @@ namespace albiondata_sql_dotNet
       logger.LogInformation($"Nats URL: {NatsUrl}");
       logger.LogInformation($"NATS Connected, ID: {NatsConnection.ConnectedId}");
 
-      var incomingMarketOrders = NatsConnection.SubscribeAsync(marketOrdersDeduped);
+      var incomingMarketOrders = NatsConnection.SubscribeAsync(marketOrdersDedupedBulk);
       var incomingMarketHistories = NatsConnection.SubscribeAsync(marketHistoriesDeduped);
       var incomingGoldData = NatsConnection.SubscribeAsync(goldDataDeduped);
 
-      incomingMarketOrders.MessageHandler += HandleMarketOrder;
+      incomingMarketOrders.MessageHandler += HandleMarketOrderBulk;
       incomingMarketHistories.MessageHandler += HandleMarketHistory;
       incomingGoldData.MessageHandler += HandleGoldData;
 
@@ -117,40 +119,56 @@ namespace albiondata_sql_dotNet
       NatsConnection.Close();
     }
 
-    private static void HandleMarketOrder(object sender, MsgHandlerEventArgs args)
+    private static void HandleMarketOrderBulk(object sender, MsgHandlerEventArgs args)
     {
       var logger = CreateLogger<Program>();
       var message = args.Message;
       try
       {
         using var context = new ConfiguredContext();
-        var marketOrder = JsonConvert.DeserializeObject<MarketOrderDB>(Encoding.UTF8.GetString(message.Data));
-        marketOrder.AlbionId = marketOrder.Id;
-        marketOrder.Id = 0;
-        var dbOrder = context.MarketOrders.FirstOrDefault(x => x.AlbionId == marketOrder.AlbionId);
-        if (dbOrder != null)
+        var marketOrderUpdates = JsonConvert.DeserializeObject<List<MarketOrderDB>>(Encoding.UTF8.GetString(message.Data));
+
+        // The database calls the unique Albion ID AlbionId
+        // However the data client sends this as just Id
+        // Transfer Id data to AlbionId to match database naming
+        foreach (var marketOrderUpdate in marketOrderUpdates)
         {
-          dbOrder.UnitPriceSilver = marketOrder.UnitPriceSilver;
-          dbOrder.UpdatedAt = DateTime.UtcNow;
-          dbOrder.Amount = marketOrder.Amount;
-          dbOrder.LocationId = marketOrder.LocationId;
-          dbOrder.DeletedAt = null;
-          context.MarketOrders.Update(dbOrder);
+          marketOrderUpdate.AlbionId = marketOrderUpdate.Id;
+          marketOrderUpdate.Id = 0;
         }
-        else
+
+        // AlbionId is always unique
+        var dbOrders = context.MarketOrders
+          .Where(x => marketOrderUpdates.Select(y => y.AlbionId).Contains(x.AlbionId))
+          .ToDictionary(x => x.AlbionId);
+
+        foreach (var marketOrderUpdate in marketOrderUpdates)
         {
-          marketOrder.InitialAmount = marketOrder.Amount;
-          marketOrder.CreatedAt = DateTime.UtcNow;
-          marketOrder.UpdatedAt = DateTime.UtcNow;
-          if (marketOrder.Expires > DateTime.UtcNow.AddYears(1))
+          dbOrders.TryGetValue(marketOrderUpdate.AlbionId, out var dbOrder);
+          if (dbOrder != null)
           {
-            marketOrder.Expires = DateTime.UtcNow.AddDays(7);
+            dbOrder.UnitPriceSilver = marketOrderUpdate.UnitPriceSilver;
+            dbOrder.UpdatedAt = DateTime.UtcNow;
+            dbOrder.Amount = marketOrderUpdate.Amount;
+            dbOrder.LocationId = marketOrderUpdate.LocationId;
+            dbOrder.DeletedAt = null;
+            context.MarketOrders.Update(dbOrder);
           }
-          context.MarketOrders.Add(marketOrder);
+          else
+          {
+            marketOrderUpdate.InitialAmount = marketOrderUpdate.Amount;
+            marketOrderUpdate.CreatedAt = DateTime.UtcNow;
+            marketOrderUpdate.UpdatedAt = DateTime.UtcNow;
+            if (marketOrderUpdate.Expires > DateTime.UtcNow.AddYears(1))
+            {
+              marketOrderUpdate.Expires = DateTime.UtcNow.AddDays(7);
+            }
+            context.MarketOrders.Add(marketOrderUpdate);
+          }
+          updatedOrderCounter++;
         }
         context.SaveChanges();
-        updatedOrderCounter++;
-        if (updatedOrderCounter % 100 == 0) logger.LogInformation($"Updated/Created {updatedOrderCounter} Market Orders");
+        logger.LogInformation(GetLogMessage(marketOrderUpdates.Count, "Market Orders", updatedOrderCounter));
       }
       catch (Exception ex)
       {
@@ -174,7 +192,8 @@ namespace albiondata_sql_dotNet
 
         // Do not use the last history timestamp because it is a partial period
         // It is not guaranteed to be updated so it can appear that the count in the period was way lower
-        foreach (var history in upload.MarketHistories.OrderBy(x => x.Timestamp).SkipLast(1))
+        var marketHistories = upload.MarketHistories.OrderBy(x => x.Timestamp).SkipLast(1);
+        foreach (var history in marketHistories)
         {
           var historyDate = new DateTime((long)history.Timestamp);
           var dbHistory = context.MarketHistories.FirstOrDefault(x =>
@@ -205,9 +224,9 @@ namespace albiondata_sql_dotNet
             context.MarketHistories.Update(dbHistory);
           }
           updatedHistoryCounter++;
-          if (updatedHistoryCounter % 100 == 0) logger.LogInformation($"Updated/Created {updatedHistoryCounter} Market Histories");
         }
         context.SaveChanges();
+        logger.LogInformation(GetLogMessage(marketHistories.Count(), "Market Histories", updatedHistoryCounter));
       }
       catch (Exception ex)
       {
@@ -249,7 +268,7 @@ m.updated_at < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -{MaxAgeHours} HOUR)
           Thread.Sleep(sleepTime);
 
           // Delete old hourly history records
-          incrementalCount = context.Database.ExecuteSqlInterpolated(@$"DELETE m
+          incrementalCount = context.Database.ExecuteSqlRaw(@"DELETE m
 FROM market_history m
 WHERE m.aggregation = 1
 AND m.timestamp < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -7 DAY)");
@@ -266,12 +285,12 @@ AND m.timestamp < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -7 DAY)");
           // We have been deleting for too long, kill this thread
           if ((DateTime.Now - start).TotalMinutes > ExpireCheckMinutes * 0.75)
           {
-            logger.LogInformation("Killing long running thread");
+            logger.LogWarning("Killing long running expire thread");
             changesLeft = false;
           }
           prevTotalCount = totalCount;
         }
-        logger.LogInformation($"{totalCount} total updates");
+        logger.LogInformation($"Total Order/History Expirations: {totalCount}");
       }
       catch (Exception ex)
       {
@@ -285,7 +304,6 @@ AND m.timestamp < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -7 DAY)");
       var message = args.Message;
       try
       {
-        logger.LogInformation("Processing Gold Data");
         var upload = JsonConvert.DeserializeObject<GoldPriceUpload>(Encoding.UTF8.GetString(message.Data));
         if (upload.Prices.Length != upload.Timestamps.Length) throw new Exception("Different list lengths");
         using var context = new ConfiguredContext();
@@ -311,13 +329,20 @@ AND m.timestamp < DATE_ADD(UTC_TIMESTAMP(),INTERVAL -7 DAY)");
             };
             context.GoldPrices.Add(goldPrice);
           }
+          updatedGoldCounter++;
         }
         context.SaveChanges();
+        logger.LogInformation(GetLogMessage(upload.Prices.Length, "Gold Records", updatedGoldCounter));
       }
       catch (Exception ex)
       {
         logger.LogError(ex, "Error handling gold data");
       }
+    }
+
+    private static string GetLogMessage(int updateCount, string updateType, ulong totalProcessed)
+    {
+      return $"Updated/Created {updateCount,3} {$"{updateType}.",-18} Total Processed: {totalProcessed,10}";
     }
   }
 }
