@@ -294,7 +294,7 @@ LIMIT {batchSize}");
 
           // Keep expiring when we are expiring large numbers at a time
           // Stop expiring when at less than a full batch
-          if (lastDeletedOrderCount + lastDeletedHistoryCount >= batchSize)
+          if (lastDeletedOrderCount >= batchSize || lastDeletedHistoryCount >= batchSize)
           {
             changesLeft = true;
           }
