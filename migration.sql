@@ -1,8 +1,8 @@
 -- --------------------------------------------------------
--- Host:                         localhost
--- Server version:               10.3.22-MariaDB-1:10.3.22+maria~bionic - mariadb.org binary distribution
+-- Host:                         127.0.0.1
+-- Server version:               10.3.24-MariaDB-1:10.3.24+maria~bionic - mariadb.org binary distribution
 -- Server OS:                    debian-linux-gnu
--- HeidiSQL Version:             10.3.0.5771
+-- HeidiSQL Version:             11.0.0.5919
 -- --------------------------------------------------------
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS `market_history` (
   `timestamp` datetime(6) NOT NULL,
   `aggregation` tinyint(4) NOT NULL DEFAULT 6,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `Main` (`item_id`,`quality`,`location`,`timestamp`,`aggregation`)
+  UNIQUE KEY `Main` (`item_id`,`quality`,`location`,`timestamp`,`aggregation`),
+  KEY `Simple` (`item_id`,`timestamp`,`aggregation`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Data exporting was unselected.
