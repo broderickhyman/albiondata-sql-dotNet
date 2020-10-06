@@ -1,6 +1,6 @@
-﻿using AlbionData.Models;
+﻿using System;
+using AlbionData.Models;
 using Microsoft.EntityFrameworkCore;
-using System;
 
 namespace albiondata_sql_dotNet
 {
@@ -16,7 +16,7 @@ namespace albiondata_sql_dotNet
 
       // Use a large timeout since we have deletes that must do table scans
       optionsBuilder.UseMySql(Program.SqlConnectionUrl,
-        opts => opts.CommandTimeout((int)TimeSpan.FromMinutes(1).TotalSeconds));
+        opts => opts.CommandTimeout((int)TimeSpan.FromMinutes(5).TotalSeconds));
 #if DEBUG
       if (Program.Debug)
       {
