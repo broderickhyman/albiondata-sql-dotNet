@@ -16,13 +16,13 @@ jobs:
       - name: Login to DockerHub
         uses: docker/login-action@v1 
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: phendryx
+          password: 743af688-e5df-4518-b134-1e75f4188ef5
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v2
-        with:
-          push: false
-          tags: user/app:latest
+        # with:
+        #   push: true
+        #   tags: user/app:latest
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
