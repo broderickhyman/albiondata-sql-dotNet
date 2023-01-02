@@ -1,7 +1,11 @@
+
+# THIS REPO IS ARCHIVED! THE ACTIVE REPO CAN BE FOUND [HERE](https://github.com/ao-data/albiondata-sql-dotNet)! (ao-data/albiondata-sql-dotNet)
+<br/><br/><br/><br/><br/><br/><br/><br/>
+
 # albiondata-sql-dotNet
 .Net Core Cross-Platform MySQL data dump for albiondata
 
-The [albiondata-client](https://github.com/broderickhyman/albiondata-client) pulls MarketOrders from the network traffic
+The [albiondata-client](https://github.com/ao-data/albiondata-client) pulls MarketOrders from the network traffic
 and pushes them to NATS, albiondata-sql-dotNet dumps those from NATS to your MySQL Database.
 
 # Usage
