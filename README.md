@@ -1,5 +1,5 @@
 
-# THIS REPO IS ARCHIVED! THE ACTIVE REPO CAN BE FOUND [HERE](https://github.com/ao-data/albiondata-client)! (ao-data/albiondata-client)
+# THIS REPO IS ARCHIVED! THE ACTIVE REPO CAN BE FOUND [HERE](https://github.com/ao-data/albiondata-sql-dotNet)! (ao-data/albiondata-sql-dotNet)
 <br/><br/><br/><br/><br/><br/><br/><br/>
 
 # albiondata-sql-dotNet
